@@ -19,25 +19,34 @@ updated_by: implementer
 
 ## In progress (max 5)
 
-- **SDLC operational-memory + end-to-end autonomy hardening** — this turn.
-  Adds 4 new memory files (`operational-context`, `architecture`,
-  `business-rules`, `incidents`) and tightens the autonomy contract so
-  agents drive a task across phases until PR merge without re-prompting.
-  Touches `commit-conventions.mdc`, `branch-discipline.mdc`,
-  `agent-autonomy.mdc`, `sdlc.yaml.policies.autonomy`, the implementer +
-  reviewer cards, the `/implement` + `/review` commands, the
-  `sessionStart` hook, and `.sdlc/INDEX.md` / `AGENTS.md`. Target branch:
-  `chore/sdlc-autonomy-and-memory`.
-- **docs → Plane native pages mirror** — uncommitted, waiting for its own
-  branch. Adds `docs/` tree (14 files), `scripts/plane-sync.mjs sync-docs`,
-  `.github/workflows/docs-sync.yml`, README rewrite. Target branch:
-  `chore/docs-plane-mirror`. No spec yet — borderline whether it needs
-  one (no user-facing change).
+- **PR #2 — `chore/sdlc-discovery`** ([link](https://github.com/fewrux/news-app/pull/2)).
+  Now bundles three streams under one PR (decision per `agent-autonomy.mdc
+  § "Batch vs. split"`): (a) SDLC discoverability surface (README, docs/,
+  GEMINI.md, copilot-instructions, structure CI guard); (b) operational
+  memory (commit `61cb7d0` — 4 new memory files + wiring); (c) end-to-end
+  autonomy lockdown (commit `3875dae` — task ends at PR merge, phase
+  handoff is autonomous, upstream "ask before commit" default overridden).
+  Local gates green (lint/typecheck/build). Reviewer subagent dispatched
+  per the new `phase_handoff.chain`. Next stop point: reviewer-agent
+  GitHub identity for the actual approval click — that's a genuine
+  `pause_on: missing input that cannot be inferred`.
+- **Cloudflare-fingerprinting workaround in `scripts/plane-sync.mjs`** —
+  uncommitted on this branch. Adds a `curl`-subprocess path for Plane
+  write requests (POST/PATCH) because undici's TLS fingerprint hits a
+  Cloudflare 403 challenge after a small burst. Also a related
+  `docs/.plane-pages.json` cache update. Orthogonal to this PR's scope;
+  belongs in a separate `fix/plane-sync-cloudflare-ua` PR.
+- **Pre-existing YAML parse error in `.sdlc/sdlc.yaml` lines 619–628**.
+  The `artifact.intent -> plane.issue { state: backlog }` pseudo-arrow
+  mapping notation isn't valid YAML — verified by stash-testing
+  `js-yaml` against pre-edit HEAD. Out of scope for PR #2; needs a
+  `fix/sdlc-yaml-plane-mappings` PR that converts the block to a proper
+  list-of-mappings.
 - **Local `main` is diverged from `origin/main`** — local has an
   illegal-under-new-rules direct-to-main commit `56d0528 chore(gitignore)`;
-  remote has the trunk-based PR `f39c7ca`. Needs `git reset --hard
-  origin/main` after `56d0528` is replayed as a tiny PR. Target branch:
-  `chore/gitignore-vercel-env`.
+  remote has the trunk-based PR `f39c7ca`. After PR #2 merges, replay
+  `56d0528` as `chore/gitignore-vercel-env` and `git reset --hard
+  origin/main` locally.
 
 ## Recently completed (max 5, last 14 days)
 
