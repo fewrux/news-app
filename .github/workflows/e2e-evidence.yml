@@ -1,0 +1,51 @@
+name: e2e-evidence
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+
+      - run: npm ci --no-audit --no-fund
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Playwright (chromium only on CI to save time)
+        run: npx playwright install --with-deps chromium
+
+      - name: Run e2e
+        env:
+          CI: "true"
+        run: npx playwright test --project=chromium --reporter=list,html
+
+      - name: Stage evidence under .sdlc/reports
+        if: always()
+        run: |
+          run_id=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
+          mkdir -p ".sdlc/reports/${run_id}"
+          if [ -d test-results ]; then cp -r test-results ".sdlc/reports/${run_id}/"; fi
+          if [ -d playwright-report ]; then cp -r playwright-report ".sdlc/reports/${run_id}/"; fi
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-evidence-${{ github.run_id }}
+          path: .sdlc/reports/
+          if-no-files-found: warn
+          retention-days: 7
