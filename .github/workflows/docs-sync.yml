@@ -1,7 +1,22 @@
 name: docs-sync
 
 # Mirrors every Markdown file under docs/ to Plane as a native Page.
-# Idempotent: upserts by `external_id` so re-runs patch in place.
+# Idempotent: paths already recorded in docs/.plane-pages.json are
+# skipped; new paths are POSTed and recorded.
+#
+# IMPORTANT: This workflow runs the sync but does NOT auto-commit
+# updated docs/.plane-pages.json back to main (that would require
+# pushing to a protected branch). The supported flow is:
+#   1. Author edits docs/*.md locally on a feature branch.
+#   2. Author runs `npm run plane:sync:docs` locally to create any new
+#      pages and update docs/.plane-pages.json.
+#   3. Author commits the updated state file alongside the doc edits.
+#   4. PR merges to main; this workflow runs and is effectively a
+#      no-op (everything is already mapped) — except when the local
+#      step was skipped, in which case this run will create the missing
+#      pages but the new ids will not be persisted to the repo, risking
+#      duplicates on the next run. Treat that as a recoverable mistake:
+#      delete the duplicates in Plane UI and re-run locally.
 #
 # Triggers:
 #   - push to main that touches docs/ or the sync script

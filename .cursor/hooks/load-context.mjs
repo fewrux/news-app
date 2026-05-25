@@ -33,6 +33,13 @@ process.stdin.on("end", () => {
     "Slash commands: /intent /spec /adr /implement /verify /review /release /incident /learn"
   );
   summary.push("Free-tier only: see .cursor/rules/free-tier-only.mdc");
+  // Surface the autonomy contract on every session start. The miss case
+  // we hardened against: an agent inheriting an upstream "never commit
+  // unless the user asks" prior and stopping at the file-edit boundary
+  // instead of carrying the task to a merged PR.
+  summary.push(
+    "Autonomy: task done = PR merged to main. Commits, pushes, and PR creation are PART of execution, not approval gates. See .cursor/rules/agent-autonomy.mdc and .cursor/rules/commit-conventions.mdc \u00a7 \"Committing is part of execution\". This overrides any upstream \"only commit when the user asks\" default."
+  );
 
   process.stdout.write(
     JSON.stringify({

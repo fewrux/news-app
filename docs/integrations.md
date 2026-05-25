@@ -46,15 +46,19 @@ Markdown file to HTML, and upserts a Plane page per file:
 
 - First sync — `POST /api/v1/workspaces/{slug}/projects/{project}/pages/`
   with `external_id: docs/<filename>` and
-  `external_source: news-app-docs`.
-- Subsequent runs — lookup by `external_id` from the project's pages
-  list, then `PATCH` the existing page.
-- No state file: idempotency is driven by Plane's `external_id` field.
+  `external_source: news-app-docs`. The returned page id is recorded
+  in `docs/.plane-pages.json` (committed).
+- Subsequent runs — paths already in the mapping are **skipped** by
+  default. Set `PLANE_PAGES_PATCH_ENABLED=1` once Plane Cloud ships
+  PATCH on pages (today the API returns 405 — see PR `makeplane/plane#8800`).
+  Meanwhile, to refresh an existing doc page after editing the
+  Markdown, **delete the page in the Plane UI and re-run sync** — the
+  script will recreate it with the new content.
 
 Run manually:
 
 ```bash
-npm run plane:sync sync-docs
+npm run plane:sync:docs
 ```
 
 Automated on `push.main` by `.github/workflows/docs-sync.yml`. The
@@ -63,9 +67,11 @@ workflow needs these secrets:
 - `PLANE_API_TOKEN`, `PLANE_API_BASE`, `PLANE_WORKSPACE_SLUG`,
   `PLANE_PROJECT_ID`
 
-Per
-[`.cursor/skills/plane-sync/SKILL.md`](../.cursor/skills/plane-sync/SKILL.md):
-**use the script, not raw curl**.
+The script uses Node's `fetch` for reads and shells out to `curl` for
+writes (Node's `undici` is JA3-fingerprinted into a stricter Cloudflare
+bucket; curl sails through). For more on the Plane Cloud / Cloudflare
+quirks the script works around, see
+[`.cursor/skills/plane-sync/SKILL.md`](../.cursor/skills/plane-sync/SKILL.md#known-plane-cloud-quirks-relevant-to-docs-sync).
 
 ## Vercel — deployment
 
