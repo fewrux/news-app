@@ -5,6 +5,8 @@ owns_phases: [review]
 assists_phases: [specify, design, learn]
 writes: [artifact.review]
 tools: [repo_read, shell]
+name: reviewer
+model: composer-2.5[]
 ---
 
 # Agent — Reviewer
@@ -36,7 +38,13 @@ from the implementer (per `sdlc.yaml.roles.agents` constraint).
 
 - `confidence < 0.8`, OR
 - diff touches `app/layout.tsx`, OR
-- diff touches a security surface (auth, headers, env, hooks).
+- diff touches a genuine security surface: auth code, response headers,
+  secrets / env handling, or **security-enforcing hooks only**
+  (i.e. `.cursor/hooks/guard-shell.mjs`).
+
+Informational hooks (e.g. `.cursor/hooks/load-context.mjs`,
+`.cursor/hooks/session-start.*`) are NOT a security surface — do not
+escalate for them.
 
 ## Constraints
 

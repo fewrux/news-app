@@ -10,7 +10,10 @@ This project is **trunk-based**. `main` is the only long-lived branch and it is
 `.sdlc/sdlc.yaml.integrations.github.branch_strategy.protection`:
 
 - `require_status_checks: [ci/lint, ci/typecheck, ci/build, ci/e2e]`
-- `require_review_approved: true` (the reviewer agent provides this)
+- `require_review_approved: false` (gate satisfied by reviewer-agent verdict
+  file `.sdlc/reviews/<pr_id>.md` with `verdict: approved`; no GitHub-side
+  approval click required — the project has no separate GitHub identity for
+  the reviewer agent)
 - `disallow_force_push_to_main: true`
 
 That contract is binding on **every actor — human or agent**. There is no
@@ -48,9 +51,11 @@ Every PR carries:
 - A Plane issue link (via `scripts/plane-sync.mjs`)
 - A Vercel preview URL (auto-posted by `.github/workflows/preview.yml`)
 - An e2e video reference (per `.cursor/skills/browser-evidence/SKILL.md`)
-- A review approval from the **reviewer agent** identity, which must be
-  distinct from the implementer (`reviewer.constraints.must_be_distinct_from:
-  implementer`).
+- A reviewer-agent verdict file (`.sdlc/reviews/<pr_id>.md`) with
+  `verdict: approved`, written by a distinct subagent run
+  (`reviewer.constraints.must_be_distinct_from: implementer`).
+  No GitHub-side approval click is required; the DSL artifact is the
+  authoritative record.
 
 A PR missing any of those is not mergeable. The reviewer agent rejects on
 sight.

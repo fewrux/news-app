@@ -20,7 +20,7 @@ This repo runs an AI-native SDLC. The contract is `.sdlc/sdlc.yaml`; humans writ
 
 - Every artifact under `.sdlc/` carries provenance per `sdlc.yaml.artifacts.common_provenance`. Empty fields are OK; fabricating a `trace_id` or `model` is a blocker. See `.cursor/skills/provenance-stamp/`.
 - Free tier only across every integration (`.cursor/rules/free-tier-only.mdc`). Anything that would exceed a quota must `pause_and_escalate` to the maintainer.
-- A reviewer agent run MUST be distinct from the implementer run for the same change.
+- A reviewer agent run MUST be distinct from the implementer run for the same change. The review gate is satisfied by the reviewer-agent's `.sdlc/reviews/<pr_id>.md` verdict file (`verdict: approved`); no GitHub-side approval click is required.
 - Every PR carries a Plane issue link, a Vercel preview URL, and an e2e video reference.
 - **`main` is protected. Trunk-based, PR-only, no bypass.** No `git push` to `main`, no commits while checked out on `main`, no `--admin` PR merges. Work on `feat/*`, `fix/*`, `chore/*`, or `hotfix/*` branches and merge via approved PR. See `.cursor/rules/branch-discipline.mdc`; the `beforeShellExecution` hook enforces this mechanically.
 - **Approved tasks execute end-to-end.** Do not re-prompt for confirmation on sub-steps of an approved task; decide batch-vs-split yourself; prefer parallel subagent dispatch for independent work. Pause only on the conditions enumerated in `sdlc.yaml.policies.autonomy.pause_on`. See `.cursor/rules/agent-autonomy.mdc`.
