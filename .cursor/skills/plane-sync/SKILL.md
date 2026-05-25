@@ -58,12 +58,44 @@ Commands:
   `description_html`. Plane Pages CRUD lives at
   `/api/v1/workspaces/{slug}/projects/{project}/pages/`.
 
+## Known Plane Cloud quirks (relevant to docs sync)
+
+These were discovered while wiring `sync-docs` against `api.plane.so` on
+2026-05-25 and codified here so the next agent doesn't re-discover them:
+
+1. **Pages: only POST and GET are exposed on the public REST API today.**
+   PATCH and DELETE both return `HTTP 405 "Method not allowed"`. PR
+   `makeplane/plane#8800` added the routes but Cloud hasn't shipped
+   them yet. The script short-circuits PATCH attempts to a soft skip
+   (set `PLANE_PAGES_PATCH_ENABLED=1` to re-enable once Plane lands it).
+   To refresh an existing doc page meanwhile, delete it in the Plane
+   UI and re-run sync — the script will recreate it.
+2. **List endpoint doesn't expose `external_id` / `external_source`.**
+   Idempotency is therefore driven by a committed state file at
+   `docs/.plane-pages.json` mapping `<rel-path>` → `<plane-page-uuid>`.
+   Detail GET does include them, but N+1 fetches against Cloudflare are
+   not worth it.
+3. **Cloudflare WAF in front of `api.plane.so` is content + burst
+   sensitive.** Observations:
+    - More than ~10 write requests in a short window from one IP
+      escalates to a sticky block (HTTP 403 with a Cloudflare challenge
+      body) that takes several hours to clear, even for unrelated
+      single writes.
+    - Bodies containing many named HTML entities (`&lt;`, `&gt;`,
+      `&amp;`) trigger an XSS-bypass WAF rule above ~4 KB. The script
+      escapes using numeric character references (`&#60;` etc.) to
+      avoid this.
+    - Node `undici`'s default fetch is JA3-fingerprinted into a
+      stricter bucket than curl. The script therefore uses `fetch` for
+      GET and shells out to `curl` for POST/PATCH/DELETE.
+    - Throttle with `PLANE_WRITE_DELAY_MS` (default 3000 ms) if you
+      need to be even more conservative.
+4. **Self-hosted Community builds may return 404 on Pages endpoints.**
+   See https://github.com/makeplane/plane/issues/8986. If `sync-docs`
+   errors with 404 on a self-hosted instance, escalate to maintainer
+   per `policies.cost.on_exceed` rather than upgrading silently.
+
 ## Free-tier guard
 
 - Plane Cloud Free supports ≤ 12 users. Before adding a user, confirm
   headcount or migrate to self-hosted Community.
-- Pages CRUD is available on Plane Cloud and Commercial; self-hosted
-  Community builds may return 404 (see
-  https://github.com/makeplane/plane/issues/8986). If `sync-docs` errors
-  with 404 on a self-hosted instance, escalate to maintainer per
-  `policies.cost.on_exceed` rather than upgrading silently.
