@@ -40,5 +40,10 @@ do not skip ahead.
 
 ## Constraints
 
-- Human approver `product_owner` must sign off before moving past `canary_5pct`.
+- Approve stage transitions yourself; releases are agent-driven by default
+  (`phase.release.human_required: conditional`, `default_approval: agent`).
+- Escalate to `product_owner` only when a `phase.release.human_required_when`
+  condition fires (security surface, schema migration, `user_data_loss` risk,
+  p0/p1 hotfix, or `release.confidence < 0.7`). Cite the triggering condition
+  in the release note.
 - On rollback, immediately call `/incident`.

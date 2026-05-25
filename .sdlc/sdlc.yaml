@@ -209,8 +209,18 @@ sdlc:
         stages: [canary_5pct, canary_25pct, full]
         promote_when: "slo.error_rate < 0.5% AND slo.p95_latency_ms < 400"
         rollback_when: "slo breached for 5m OR user_reported_regressions > 0"
-      human_required: true       # product_owner approves stage transitions
-      approver: product_owner
+      # Success metric: zero human fingers lifted. Releases are autonomous
+      # by default; humans gate only the genuinely high-risk subset.
+      human_required: conditional
+      human_required_when:
+        - "diff.touches_security_surface == true"
+        - "diff.includes_schema_migration == true"
+        - "spec.risks.includes('user_data_loss')"
+        - "release.kind == hotfix AND prior_incident.severity in [p0, p1]"
+        - "release.confidence < 0.7"
+      default_approval: agent          # releaser agent approves stage transitions
+      escalate_to: product_owner       # only when a human_required_when triggers
+      approver: releaser
 
     - id: operate
       owner: operator
@@ -640,3 +650,4 @@ sdlc:
     - "Every PR carries a Plane issue link, a Vercel preview URL, and an e2e video reference."
     - "main is protected; changes land via approved PR only; no bypass for any actor."
     - "Approved tasks execute end-to-end; agents do not re-prompt for sub-step approval."
+    - "Releases are agent-driven by default; humans approve only when phase.release.human_required_when triggers."

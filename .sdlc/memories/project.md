@@ -33,6 +33,7 @@
 - Every PR carries: a Plane issue link, a Vercel preview URL, an e2e video reference.
 - **Trunk-based with protected `main`.** Single long-lived branch. All changes flow through a short-lived `feat/*`, `fix/*`, `chore/*`, or `hotfix/*` branch and merge by approved PR. No direct pushes, no admin bypass, no force-push. The contract is in `sdlc.yaml.integrations.github.branch_strategy.protection`; the discipline is enforced by `.cursor/rules/branch-discipline.mdc` and the `beforeShellExecution` hook in `.cursor/hooks/guard-shell.mjs`.
 - **End-to-end autonomous execution.** Approved tasks run to completion without re-prompting for sub-step approval. Agents decide batch-vs-split and dispatch independent work in parallel (subagents or batched tool calls). Pauses are limited to the conditions in `sdlc.yaml.policies.autonomy.pause_on`. Enforced by `.cursor/rules/agent-autonomy.mdc`.
+- **Releases are agent-driven by default.** The success metric is zero human fingers lifted. `phase.release.human_required: conditional` — the releaser agent approves stage transitions; humans are escalated to only when a `human_required_when` condition fires (security surface, schema migration, `user_data_loss` risk, p0/p1 hotfix, or `release.confidence < 0.7`). The reviewer agent (distinct from the implementer per `reviewer.must_be_distinct_from`) provides `gate.review_approved`.
 
 ## Known dashboards (fill in as they're created)
 - PostHog dashboard: _set after first deploy_
