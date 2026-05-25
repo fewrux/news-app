@@ -83,10 +83,39 @@ async function rewriteFrontmatter(path, key, value) {
   await writeFile(path, updated);
 }
 
+// Plane requires label UUIDs on issue create, not names. Resolve provided
+// label names against the project's /labels/ collection, creating any that
+// don't yet exist, and return the matching IDs.
+async function resolveLabels(names) {
+  const wanted = [...new Set((names ?? []).filter(Boolean).map(String))];
+  if (wanted.length === 0) return [];
+
+  const existing = await planeFetch(`/labels/?per_page=100`);
+  const list = Array.isArray(existing) ? existing : (existing?.results ?? []);
+  const byName = new Map(list.map((l) => [l.name.toLowerCase(), l.id]));
+
+  const ids = [];
+  for (const name of wanted) {
+    const key = name.toLowerCase();
+    let id = byName.get(key);
+    if (!id) {
+      const created = await planeFetch(`/labels/`, {
+        method: "POST",
+        body: JSON.stringify({ name }),
+      });
+      id = created.id;
+      byName.set(key, id);
+    }
+    ids.push(id);
+  }
+  return ids;
+}
+
 async function createIssue({ name, description, labels = [], state }) {
+  const labelIds = await resolveLabels(labels);
   return planeFetch(`/issues/`, {
     method: "POST",
-    body: JSON.stringify({ name, description, labels, state }),
+    body: JSON.stringify({ name, description, labels: labelIds, state }),
   });
 }
 
