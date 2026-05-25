@@ -7,8 +7,13 @@ produced or consumed by a phase declared in that contract.
 > If you're new here, read in this order:
 > 1. `sdlc.yaml` (the contract)
 > 2. `memories/project.md` (invariant facts)
-> 3. `memories/glossary.md` (canonical terms)
-> 4. The template under the folder you're about to write into.
+> 3. **`memories/operational-context.md`** (what's in flight right now — read this every session before touching anything)
+> 4. `memories/architecture.md` (orientation + pointers to ADRs)
+> 5. `memories/business-rules.md` (product rules for The Daily Brief)
+> 6. `memories/glossary.md` (canonical terms)
+> 7. `memories/incidents.md` (open + recently resolved incidents)
+> 8. `memories/lessons.md` (durable learnings)
+> 9. The template under the folder you're about to write into.
 
 ## Map
 
@@ -29,9 +34,13 @@ produced or consumed by a phase declared in that contract.
 ├── postmortems/           Blameless postmortems linked to incidents
 ├── rules/                 SDLC-level prose rules (long-form)
 └── memories/              Project knowledge reloaded each session
-    ├── project.md         Invariant facts
-    ├── lessons.md         Appended by `phase.learn`
-    └── glossary.md        Canonical terminology
+    ├── project.md                Invariant facts
+    ├── operational-context.md    Rolling status — in-progress + recently completed (capped, not a log)
+    ├── architecture.md           Orientation + pointers to ADRs
+    ├── business-rules.md         Product rules for The Daily Brief
+    ├── glossary.md               Canonical terminology
+    ├── incidents.md              Rolling digest of open + recently resolved incidents
+    └── lessons.md                Appended by `phase.learn`
 ```
 
 ## Per-folder reference
@@ -53,6 +62,14 @@ produced or consumed by a phase declared in that contract.
 
 `reports/` is intentionally not versioned — see the project's `.gitignore`
 and `phase.verify` for why (large, regenerable, uploaded as CI artifacts).
+
+## Human-readable companion
+
+For the friendly tour that doesn't require reading YAML, see
+[`docs/`](../docs/README.md) at the repo root. Every Markdown file
+under `docs/` is mirrored to Plane as a native page on push to `main`
+(`.github/workflows/docs-sync.yml`). The contract here is still
+authoritative when the two disagree.
 
 ## How to write here
 

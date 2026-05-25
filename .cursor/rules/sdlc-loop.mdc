@@ -17,11 +17,22 @@ before planning any non-trivial change.
   `node_modules/next/dist/docs/` (per `AGENTS.md`).
 - Cite the exact rule, gate, or doc path you followed in your final message.
 
-## Memories the agent must reload
+## Memories the agent must reload (every session, before acting)
 
-- `.sdlc/memories/project.md` — invariant facts about this app
-- `.sdlc/memories/lessons.md` — appended by the `learn` phase
-- `.sdlc/memories/glossary.md` — canonical terminology
+Read in this order. If you're about to touch the repo without having
+reloaded these, **stop and reload first** — that's the contract.
+
+1. `.sdlc/memories/project.md` — invariant facts about this app
+2. `.sdlc/memories/operational-context.md` — what's in flight *right now* (capped, not a log)
+3. `.sdlc/memories/architecture.md` — orientation + pointers to ADRs
+4. `.sdlc/memories/business-rules.md` — product rules for The Daily Brief
+5. `.sdlc/memories/glossary.md` — canonical terminology
+6. `.sdlc/memories/incidents.md` — open + recently resolved incidents
+7. `.sdlc/memories/lessons.md` — appended by the `learn` phase
+
+`operational-context.md` is updated on every PR open / merge. Keep it
+capped — older items move to `lessons.md` (or are dropped) per the
+update rules at the top of that file.
 
 ## Slash commands map to phases
 

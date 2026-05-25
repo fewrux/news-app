@@ -2,12 +2,19 @@
 
 This repo runs an AI-native SDLC. The contract is `.sdlc/sdlc.yaml`; humans write intent, agents execute the lifecycle.
 
-**Start here:**
+**Start here (in this order, every session):**
 
 - `.sdlc/INDEX.md` — durable memory: intents, specs, decisions, reviews, incidents, releases, learnings.
-- `.cursor/INDEX.md` — operator surface: agents, slash commands, skills, rules, hooks.
 - `.sdlc/memories/project.md` — invariant facts about this project.
+- `.sdlc/memories/operational-context.md` — **what's in flight right now.** Read before touching anything; update on PR open / merge. Capped, not a history log.
+- `.sdlc/memories/architecture.md` — orientation + pointers to ADRs.
+- `.sdlc/memories/business-rules.md` — product rules for The Daily Brief.
 - `.sdlc/memories/glossary.md` — canonical terminology you must use verbatim.
+- `.sdlc/memories/incidents.md` — open + recently resolved incidents.
+- `.sdlc/memories/lessons.md` — durable learnings appended by `/learn`.
+- `.cursor/INDEX.md` — operator surface: agents, slash commands, skills, rules, hooks.
+
+> Cursor sessions also get a `sessionStart` hook + always-applied rules from `.cursor/`. Those are conveniences for one specific tool; **the contract is `.sdlc/sdlc.yaml`**. Non-Cursor agents (Claude Code via `CLAUDE.md`, Gemini CLI via `GEMINI.md`, GitHub Copilot Chat via `.github/copilot-instructions.md`, Codex / Aider / others via this file) should rely on `AGENTS.md` and the DSL.
 
 **Hard rules (always apply):**
 

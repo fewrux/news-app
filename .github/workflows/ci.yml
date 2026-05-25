@@ -10,6 +10,49 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  structure:
+    # Guards the SDLC discovery surface: if any of these entry points
+    # disappear, sessions start the next morning without context. The
+    # contract is .sdlc/sdlc.yaml; the human/agent on-ramps below MUST
+    # exist for that contract to be findable.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assert SDLC entry-point files exist
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            AGENTS.md
+            CLAUDE.md
+            README.md
+            .sdlc/sdlc.yaml
+            .sdlc/INDEX.md
+            .sdlc/memories/project.md
+            .sdlc/memories/lessons.md
+            .sdlc/memories/glossary.md
+            .cursor/INDEX.md
+            .cursor/hooks.json
+            .cursor/hooks/load-context.mjs
+            .cursor/hooks/guard-shell.mjs
+          )
+          missing=0
+          for f in "${required[@]}"; do
+            if [ ! -f "$f" ]; then
+              echo "::error file=$f::missing SDLC entry-point file"
+              missing=1
+            fi
+          done
+          exit "$missing"
+      - name: Assert sessionStart + beforeShellExecution hooks are registered
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q '"sessionStart"' .cursor/hooks.json
+          grep -q 'load-context.mjs'  .cursor/hooks.json
+          grep -q '"beforeShellExecution"' .cursor/hooks.json
+          grep -q 'guard-shell.mjs'    .cursor/hooks.json
+
   lint:
     runs-on: ubuntu-latest
     steps:

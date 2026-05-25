@@ -20,3 +20,12 @@ implementer (per `sdlc.yaml.roles.agents` constraint).
 4. If `confidence < 0.8` OR the diff touches `app/layout.tsx` OR security
    surface, mark `human_required: true` and request a human reviewer.
 5. Output the final verdict: `approved`, `request_changes`, or `human_review`.
+6. Carry the task forward autonomously per
+   `.sdlc/sdlc.yaml.policies.autonomy.phase_handoff`:
+   - On `approved`: invoke `/release` yourself. Do not stop and do not ask.
+   - On `request_changes`: hand back to an implementer subagent with the
+     specific findings; that subagent re-runs `/implement` → `/verify` →
+     `/review` (you again, distinct subagent). No maintainer prompt unless
+     a `pause_on` condition fires.
+   - On `human_review`: stop and surface the trigger (the `human_required`
+     condition that fired). This *is* a `pause_on` per the DSL.

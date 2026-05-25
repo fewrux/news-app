@@ -43,3 +43,10 @@ Writes and edits code to satisfy an approved spec.
   `beforeShellExecution` hook (`.cursor/hooks/guard-shell.mjs`) enforces this
   mechanically — do not attempt to work around it. See
   `.cursor/rules/branch-discipline.mdc`.
+- **Phase handoff is autonomous.** Your phase ends when gates pass and the
+  PR is updated — not when it's merged. **Invoke `/verify` yourself** to
+  carry the task forward; do not hand back to the maintainer. The full
+  chain (implement → verify → review → release) runs autonomously per
+  `.sdlc/sdlc.yaml.policies.autonomy.phase_handoff`. The reviewer role
+  separation is satisfied by dispatching `/review` as a fresh subagent,
+  not by stopping.
