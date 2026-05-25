@@ -54,6 +54,14 @@ produced or consumed by a phase declared in that contract.
 `reports/` is intentionally not versioned — see the project's `.gitignore`
 and `phase.verify` for why (large, regenerable, uploaded as CI artifacts).
 
+## Human-readable companion
+
+For the friendly tour that doesn't require reading YAML, see
+[`docs/`](../docs/README.md) at the repo root. Every Markdown file
+under `docs/` is mirrored to Plane as a native page on push to `main`
+(`.github/workflows/docs-sync.yml`). The contract here is still
+authoritative when the two disagree.
+
 ## How to write here
 
 Always go through a slash command — they enforce the right phase, gates, and

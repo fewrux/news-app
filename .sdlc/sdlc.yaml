@@ -563,6 +563,7 @@ sdlc:
           - { id: preview,      file: .github/workflows/preview.yml,       triggers: [pull_request] }
           - { id: deploy_prod,  file: .github/workflows/deploy-prod.yml,   triggers: [push.main] }
           - { id: plane_sync,   file: .github/workflows/plane-sync.yml,    triggers: [pull_request, issues] }
+          - { id: docs_sync,    file: .github/workflows/docs-sync.yml,     triggers: [push.main, workflow_dispatch] }
           - { id: e2e_evidence, file: .github/workflows/e2e-evidence.yml,  triggers: [pull_request] }
       maps_to_phases: [implement, verify, review, release]
 
@@ -577,7 +578,14 @@ sdlc:
         artifact.spec    -> plane.issue       { state: todo,       labels: [spec] }
         artifact.incident-> plane.issue       { state: in_progress, labels: [incident, p1] }
         phase.release    -> plane.cycle       { auto_close: true }
+        # Human-readable project documentation lives in `docs/` and is
+        # mirrored into Plane as native pages. Upserts are keyed by
+        # `external_id = "docs/<filename>"` so the script is idempotent.
+        # The page CRUD API is Cloud-only today (see
+        # https://github.com/makeplane/plane/issues/8986 for self-hosted).
+        docs/*.md        -> plane.page        { external_source: news-app-docs }
       sync_script: scripts/plane-sync.mjs
+      sync_workflow: .github/workflows/docs-sync.yml   # for docs-only sync on push.main
       maps_to_phases: [ideate, specify, operate, release]
 
     vercel:

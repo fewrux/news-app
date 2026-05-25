@@ -90,6 +90,9 @@ script headers for behavior details.
   `lib/posthog/`, `instrumentation-client.ts`).
 - **Memories** (project facts, lessons, glossary): `.sdlc/memories/`.
   Loaded each session by the `sessionStart` hook and the `sdlc-loop` rule.
+- **Human-readable documentation**: [`docs/`](../docs/README.md) at the
+  repo root. Mirrored to Plane native pages by
+  `scripts/plane-sync.mjs sync-docs` and `.github/workflows/docs-sync.yml`.
 
 ## Editing this folder
 

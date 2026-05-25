@@ -9,6 +9,8 @@ This repo runs an AI-native SDLC. The contract is `.sdlc/sdlc.yaml`; humans writ
 - `.sdlc/memories/project.md` — invariant facts about this project.
 - `.sdlc/memories/glossary.md` — canonical terminology you must use verbatim.
 
+> Cursor sessions also get a `sessionStart` hook + always-applied rules from `.cursor/`. Those are conveniences for one specific tool; **the contract is `.sdlc/sdlc.yaml`**. Non-Cursor agents (Claude Code via `CLAUDE.md`, Gemini CLI via `GEMINI.md`, GitHub Copilot Chat via `.github/copilot-instructions.md`, Codex / Aider / others via this file) should rely on `AGENTS.md` and the DSL.
+
 **Hard rules (always apply):**
 
 - Every artifact under `.sdlc/` carries provenance per `sdlc.yaml.artifacts.common_provenance`. Empty fields are OK; fabricating a `trace_id` or `model` is a blocker. See `.cursor/skills/provenance-stamp/`.
