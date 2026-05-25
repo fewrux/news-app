@@ -36,5 +36,12 @@ Trace: 7f3e1a2b-...-langsmith
 
 - One logical change per commit.
 - Never use `--no-verify` or skip hooks.
-- Never force-push to `main`.
+- **Never commit while checked out on `main`.** Open a feature branch first
+  per `.cursor/rules/branch-discipline.mdc`. The `beforeShellExecution` hook
+  blocks `git commit` on `main`.
+- **Never `git push` to `main`** in any form (direct, `-u`, `HEAD:main`,
+  forced, or via `gh pr merge --admin`). All landings happen through an
+  approved PR squash-merge.
+- Never force-push (no `--force`, no `--force-with-lease`) on any branch
+  that has been the source of a merged PR.
 - Subject line ≤ 72 chars, imperative mood, no trailing period.

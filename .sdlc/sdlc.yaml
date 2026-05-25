@@ -421,11 +421,21 @@ sdlc:
       - "Tester must use fixed seeds for evals."
 
     autonomy:
-      max_unattended_steps: 12   # agents pause for human nudge after this many
+      # Approved tasks execute end-to-end. Agents do not re-prompt for
+      # approval on sub-steps that are plainly part of completing the
+      # approved task. They decide batch-vs-split themselves and prefer
+      # parallel subagent dispatch for independent work.
+      # Enforcement: .cursor/rules/agent-autonomy.mdc (alwaysApply).
+      execute_end_to_end: true
+      reprompt_on_subtask: false
+      prefer_parallel_dispatch: true
+      max_unattended_steps: 24   # raised from 12; tasks may legitimately exceed 12 sub-steps
       pause_on:
         - "diff > 400 LOC without spec update"
         - "any policy violation"
         - "second consecutive failed gate"
+        - "missing input that cannot be inferred (e.g. unset secret, ambiguous requirement)"
+        - "free-tier quota would be breached"
 
   # ---------------------------------------------------------------------------
   # FEEDBACK — how the loop closes
@@ -494,6 +504,8 @@ sdlc:
         - { id: free-tier-only,       file: .cursor/rules/free-tier-only.mdc,        always_apply: true }
         - { id: testing-evidence,     file: .cursor/rules/testing-evidence.mdc,      globs: "tests/**/*.{ts,spec.ts}" }
         - { id: commit-conventions,   file: .cursor/rules/commit-conventions.mdc,    always_apply: true }
+        - { id: branch-discipline,    file: .cursor/rules/branch-discipline.mdc,     always_apply: true }
+        - { id: agent-autonomy,       file: .cursor/rules/agent-autonomy.mdc,        always_apply: true }
 
     memories:
       # Project-scoped persistent knowledge the agent reloads each session.
@@ -626,3 +638,5 @@ sdlc:
     - "AGENTS.md rules supersede agent priors when they conflict."
     - "No integration may require a paid plan; free-tier breach pauses the work."
     - "Every PR carries a Plane issue link, a Vercel preview URL, and an e2e video reference."
+    - "main is protected; changes land via approved PR only; no bypass for any actor."
+    - "Approved tasks execute end-to-end; agents do not re-prompt for sub-step approval."

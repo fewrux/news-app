@@ -37,3 +37,9 @@ Writes and edits code to satisfy an approved spec.
 - Pause at 12 unattended steps OR diff > 400 LOC without spec update.
 - You may NOT also act as the reviewer for the same change
   (`reviewer.must_be_distinct_from: implementer`).
+- **Trunk-based, PR-only.** Open a `feat/*` / `fix/*` / `chore/*` /
+  `hotfix/*` branch and a draft PR **before** the first commit. Never commit
+  while checked out on `main`; never push to `main`. The
+  `beforeShellExecution` hook (`.cursor/hooks/guard-shell.mjs`) enforces this
+  mechanically — do not attempt to work around it. See
+  `.cursor/rules/branch-discipline.mdc`.

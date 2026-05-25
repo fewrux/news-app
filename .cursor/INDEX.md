@@ -64,6 +64,8 @@ Loaded by Cursor when their description matches the task.
 | `provenance.mdc`           | every artifact write               | yes |
 | `free-tier-only.mdc`       | every dependency / service choice  | yes |
 | `commit-conventions.mdc`   | commits and PRs                    | yes |
+| `branch-discipline.mdc`    | trunk-based; `main` is protected   | yes |
+| `agent-autonomy.mdc`       | end-to-end execution; parallelize  | yes |
 | `nextjs-16-conventions.mdc`| `app/**/*.{ts,tsx}`                | no  |
 | `tailwind-v4.mdc`          | `**/*.{tsx,css}`                   | no  |
 | `testing-evidence.mdc`     | `tests/**/*.{ts,spec.ts}`          | no  |
@@ -74,7 +76,7 @@ Loaded by Cursor when their description matches the task.
 |------------------------|-----------------------|----------|
 | `sessionStart`         | `load-context.mjs`    | Inject SDLC summary + memory pointers |
 | `beforeSubmitPrompt`   | `scan-secrets.mjs`    | Block prompts containing secrets (failClosed) |
-| `beforeShellExecution` | `guard-shell.mjs`     | Deny destructive commands; ask for side-effecty ones |
+| `beforeShellExecution` | `guard-shell.mjs`     | Deny destructive commands, any push/commit that violates branch discipline; ask for side-effecty ones |
 | `afterFileEdit`        | `lint-touch.mjs`      | Append touched paths to `.sdlc/reports/touched.log` |
 
 All four are smoke-tested by piping representative JSON through them; see

@@ -31,6 +31,8 @@
 - Read `node_modules/next/dist/docs/` before writing Next.js code.
 - Every artifact under `.sdlc/` carries provenance.
 - Every PR carries: a Plane issue link, a Vercel preview URL, an e2e video reference.
+- **Trunk-based with protected `main`.** Single long-lived branch. All changes flow through a short-lived `feat/*`, `fix/*`, `chore/*`, or `hotfix/*` branch and merge by approved PR. No direct pushes, no admin bypass, no force-push. The contract is in `sdlc.yaml.integrations.github.branch_strategy.protection`; the discipline is enforced by `.cursor/rules/branch-discipline.mdc` and the `beforeShellExecution` hook in `.cursor/hooks/guard-shell.mjs`.
+- **End-to-end autonomous execution.** Approved tasks run to completion without re-prompting for sub-step approval. Agents decide batch-vs-split and dispatch independent work in parallel (subagents or batched tool calls). Pauses are limited to the conditions in `sdlc.yaml.policies.autonomy.pause_on`. Enforced by `.cursor/rules/agent-autonomy.mdc`.
 
 ## Known dashboards (fill in as they're created)
 - PostHog dashboard: _set after first deploy_
