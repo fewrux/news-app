@@ -1,0 +1,24 @@
+---
+description: Tailwind CSS v4 conventions for components and styles
+globs: **/*.{tsx,css}
+alwaysApply: false
+---
+
+# Tailwind v4 conventions
+
+This project uses Tailwind v4 via `@tailwindcss/postcss`. Configuration is
+CSS-first (no `tailwind.config.js`).
+
+## Do
+
+- Define design tokens with `@theme` in `app/globals.css`.
+- Compose utilities directly in JSX; extract a component only when the same
+  pattern repeats 3+ times.
+- Use `@import "tailwindcss"` at the top of `globals.css`, not the legacy
+  `@tailwind base/components/utilities` triplet.
+
+## Don't
+
+- Don't add `tailwind.config.js`; it is no longer needed and may be ignored.
+- Don't use `@apply` in component files; keep it in `globals.css` if at all.
+- Don't hard-code raw colors when a token exists.

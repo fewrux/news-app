@@ -1,0 +1,34 @@
+---
+description: Tests must produce video and trace evidence for the review phase
+globs: tests/**/*.{ts,spec.ts}
+alwaysApply: false
+---
+
+# Testing produces evidence, not just pass/fail
+
+The `verify` and `review` phases require browser evidence as inputs. Every
+Playwright test file in this repo must:
+
+- Live under `tests/e2e/` and end in `.spec.ts`.
+- Use the project Playwright config (`playwright.config.ts`); do not override
+  `video` or `trace` locally.
+- Drive a real user flow, not internal implementation details.
+
+## Required pattern
+
+```ts
+import { test, expect } from "@playwright/test";
+
+test("home page renders the daily brief", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "The Daily Brief" })).toBeVisible();
+});
+```
+
+## Forbidden
+
+- `test.only`, `test.skip` left in committed code.
+- Hard sleeps (`page.waitForTimeout`) — use `expect(...).toBeVisible()` etc.
+- Tests that pass without asserting at least one user-visible outcome.
+
+Artifacts land in `.sdlc/reports/{run_id}/` per `integrations.browser_evidence`.

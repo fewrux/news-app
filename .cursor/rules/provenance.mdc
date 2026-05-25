@@ -1,0 +1,23 @@
+---
+description: Every SDLC artifact must carry provenance fields
+alwaysApply: true
+---
+
+# Provenance is mandatory
+
+Per `sdlc.yaml.artifacts.common_provenance`, every artifact under `.sdlc/`
+MUST include the following frontmatter fields before being committed:
+
+```yaml
+provenance:
+  agent_id: <one of sdlc.yaml.roles.agents[].id>
+  model: <concrete model slug>
+  prompt_hash: <sha256 of the final prompt that produced this>
+  trace_id: <LangSmith run id from LANGCHAIN_PROJECT=news-app>
+  inputs_digest: <sha256 of inputs you read>
+  created_at: <ISO-8601 UTC>
+```
+
+If you cannot fill a field truthfully, leave it empty — never fabricate a
+trace_id or model slug. The reviewer phase rejects silent omissions; explicit
+empties are accepted with a note.

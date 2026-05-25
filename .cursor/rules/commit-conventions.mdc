@@ -1,0 +1,40 @@
+---
+description: Conventional Commits with SDLC + Plane references
+alwaysApply: true
+---
+
+# Commit message conventions
+
+Format:
+
+```
+<type>(<scope>): <imperative summary>
+
+<body explaining why, not what>
+
+Refs: SPEC-XXXX, INT-XXXX, plane:<issue-id>
+Trace: <LangSmith trace_id or "n/a">
+```
+
+## Types
+
+`feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `perf`, `ci`, `revert`.
+
+## Examples
+
+```
+feat(home): show featured story above the fold
+
+Improves first-paint hero block per SPEC-0007. Validated by
+tests/e2e/home.spec.ts::featured story renders.
+
+Refs: SPEC-0007, INT-0006, plane:NEWS-12
+Trace: 7f3e1a2b-...-langsmith
+```
+
+## Hard rules
+
+- One logical change per commit.
+- Never use `--no-verify` or skip hooks.
+- Never force-push to `main`.
+- Subject line ≤ 72 chars, imperative mood, no trailing period.

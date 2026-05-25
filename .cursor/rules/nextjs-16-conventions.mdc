@@ -1,0 +1,25 @@
+---
+description: Next.js 16 conventions for this repo — read local docs before coding
+globs: app/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Next.js 16 — read the local docs first
+
+This repo runs Next.js 16.2.6. Your training data likely predates breaking
+changes. Before writing or editing files under `app/`, read the relevant guide
+in `node_modules/next/dist/docs/`.
+
+## Hard rules
+
+- Server Components are the default; mark Client Components with `"use client"`
+  only when state, effects, or browser APIs are needed.
+- Do not invent APIs from older Next.js versions (e.g. `getServerSideProps`,
+  `pages/` routing, `next/head`).
+- Use `metadata` exports for `<head>` content; never render `<head>` manually.
+- Honor every deprecation notice you see in `node_modules/next/dist/docs/`.
+
+## Cite the doc
+
+In your PR description or final message, include the path you read:
+`node_modules/next/dist/docs/<file>.md`. Reviewer will reject silent guesses.

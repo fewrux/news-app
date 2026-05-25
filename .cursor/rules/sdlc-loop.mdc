@@ -1,0 +1,34 @@
+---
+description: Project SDLC contract — every change flows through .sdlc/sdlc.yaml
+alwaysApply: true
+---
+
+# AI-Native SDLC is the contract
+
+`.sdlc/sdlc.yaml` is the source of truth for how this project is built. Read it
+before planning any non-trivial change.
+
+## Always do
+
+- Identify which `phase` your work belongs to and obey that phase's `gates`.
+- Stamp every artifact you write with the `common_provenance` block (agent_id,
+  model, prompt_hash, trace_id, inputs_digest, created_at).
+- Before writing Next.js code, read the relevant page in
+  `node_modules/next/dist/docs/` (per `AGENTS.md`).
+- Cite the exact rule, gate, or doc path you followed in your final message.
+
+## Memories the agent must reload
+
+- `.sdlc/memories/project.md` — invariant facts about this app
+- `.sdlc/memories/lessons.md` — appended by the `learn` phase
+- `.sdlc/memories/glossary.md` — canonical terminology
+
+## Slash commands map to phases
+
+`/intent`, `/spec`, `/adr`, `/implement`, `/verify`, `/review`, `/release`,
+`/incident`, `/learn` — see `.cursor/commands/`.
+
+## When in doubt
+
+Pause and ask the maintainer rather than violate a gate or ship without
+provenance. The DSL invariants are non-negotiable.

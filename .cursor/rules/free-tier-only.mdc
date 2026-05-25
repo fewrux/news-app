@@ -1,0 +1,28 @@
+---
+description: All integrations must stay within free-tier quotas
+alwaysApply: true
+---
+
+# Free tier is the budget
+
+`sdlc.yaml.policies.cost.tier == free_only`. Any change that would push a
+service past its free quota must `pause_and_escalate` to the maintainer.
+
+## Concrete limits to respect
+
+- GitHub Actions: 2000 minutes / month (private). Prefer fast jobs and caching.
+- Vercel Hobby: 100 GB bandwidth, 100k serverless invocations, 6000 build min.
+- PostHog: 1M events, 5k session replays, 250 survey responses / month.
+  Sample replays at 0.1; never set autocapture to crawl every interaction.
+- Plane Cloud Free: ≤ 12 users.
+- LangSmith: 5k traces / month.
+
+## Before adding a dependency or service
+
+1. Confirm a free tier exists and is sufficient for expected scale.
+2. Add the quota to `sdlc.yaml.policies.cost.free_quotas`.
+3. Wire a usage check or alert if available; otherwise note it in the spec's
+   `risks` section.
+
+If you cannot stay within free tier, write an ADR proposing the change and
+stop — do not ship.
