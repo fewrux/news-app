@@ -1,0 +1,628 @@
+# =============================================================================
+# AI-Native SDLC — Domain-Specific Language
+# -----------------------------------------------------------------------------
+# This file is the single source of truth for *how* this product is built.
+# It is read by humans AND by agents. Every phase, artifact, gate, and policy
+# below is enforceable: agents must cite the rule they are following, and
+# humans review only what the DSL marks as `human_required`.
+#
+# Tenets:
+#   1. Intent over implementation — humans write *what* and *why*; agents
+#      derive *how*.
+#   2. Specs are executable — every spec links to verifiable acceptance
+#      criteria (tests, evals, or telemetry assertions).
+#   3. Provenance everywhere — every artifact records the agent, model,
+#      prompt, and trace that produced it.
+#   4. Reversible by default — releases are progressive, gated, and
+#      auto-rollback on signal regression.
+#   5. The loop closes — production telemetry feeds the next planning cycle.
+# =============================================================================
+
+sdlc:
+  schema_version: "1.0"
+  dsl: ai-native-sdlc
+  project:
+    name: news-app
+    codename: the-daily-brief
+    description: >
+      A minimal Next.js 16 / React 19 news reader. Used as a sandbox for
+      practicing AI-native development — agents own most of the lifecycle,
+      humans steer intent and approve releases.
+    repo: C:/Users/felip/Integritas/AIH/news-app
+    stack:
+      runtime: node
+      framework: { name: next, version: "16.2.6" }
+      language: { name: typescript, version: "^5" }
+      ui: { react: "19.2.4", styles: tailwindcss-v4 }
+    constraints:
+      # AGENTS.md insists agents must consult local Next.js 16 docs before
+      # writing code, since training data lags behind breaking changes.
+      - "Read node_modules/next/dist/docs/ before writing Next.js code."
+      - "Honor deprecation notices visible in the local docs."
+      - "Never invent APIs from prior Next.js versions."
+
+  # ---------------------------------------------------------------------------
+  # ROLES — who can act in this lifecycle
+  # ---------------------------------------------------------------------------
+  roles:
+    humans:
+      - id: product_owner
+        responsibilities: [intent, prioritization, release_approval]
+      - id: maintainer
+        responsibilities: [policy, escalations, final_review]
+
+    agents:
+      - id: planner
+        purpose: Turn raw intent into specs, tasks, and acceptance criteria.
+        model_class: reasoning_high
+        tools: [repo_read, web_search, docs_search]
+        writes: [artifact.spec, artifact.plan]
+
+      - id: architect
+        purpose: Produce design notes, ADRs, and interface contracts.
+        model_class: reasoning_high
+        tools: [repo_read, docs_search]
+        writes: [artifact.adr, artifact.contract]
+
+      - id: implementer
+        purpose: Write and edit code to satisfy a plan.
+        model_class: coding_fast
+        tools: [repo_read, repo_write, shell, docs_search]
+        writes: [artifact.code, artifact.migration]
+
+      - id: tester
+        purpose: Author and run tests, evals, and a11y/visual checks.
+        model_class: coding_fast
+        tools: [repo_read, repo_write, shell]
+        writes: [artifact.test, artifact.eval, artifact.report]
+
+      - id: reviewer
+        purpose: Code review against spec, standards, and gates.
+        model_class: reasoning_high
+        tools: [repo_read, shell]
+        writes: [artifact.review]
+        constraints:
+          - must_be_distinct_from: implementer
+
+      - id: releaser
+        purpose: Stage rollouts, monitor SLOs, decide promote vs. rollback.
+        model_class: reasoning_medium
+        tools: [shell, telemetry_read]
+        writes: [artifact.release_note, artifact.rollback_decision]
+
+      - id: operator
+        purpose: Watch production, triage incidents, file regressions.
+        model_class: reasoning_medium
+        tools: [telemetry_read, repo_read, issue_write]
+        writes: [artifact.incident, artifact.postmortem]
+
+      - id: learner
+        purpose: Mine telemetry + reviews into rule updates and eval cases.
+        model_class: reasoning_high
+        tools: [telemetry_read, repo_read, repo_write]
+        writes: [artifact.rule_update, artifact.eval_case]
+
+  # ---------------------------------------------------------------------------
+  # MODEL POLICY — abstract classes, bound to concrete models per environment
+  # ---------------------------------------------------------------------------
+  models:
+    classes:
+      reasoning_high:
+        purpose: Architecture, planning, review.
+        constraints: { min_context_tokens: 100000 }
+      reasoning_medium:
+        purpose: Routine decisions, triage.
+      coding_fast:
+        purpose: Bulk edits, mechanical refactors, test generation.
+        constraints: { tool_calls_per_turn_max: 16 }
+    selection_policy:
+      - rule: "Prefer the cheapest class that meets the task's reasoning need."
+      - rule: "Escalate one class on retry after a failed gate."
+      - rule: "Never use coding_fast for security-sensitive review."
+
+  # ---------------------------------------------------------------------------
+  # CONTEXT — what every agent should ground itself in before acting
+  # ---------------------------------------------------------------------------
+  context:
+    required_reading:
+      - path: AGENTS.md
+        why: Project-wide agent rules (e.g., Next.js 16 doc requirement).
+      - path: node_modules/next/dist/docs/
+        why: Authoritative Next.js 16 reference for this repo.
+        when: Any task touching app/, routing, metadata, or server components.
+    memory:
+      decisions_log: .sdlc/decisions/
+      eval_cases:    .sdlc/evals/
+      rules:         .sdlc/rules/
+    retrieval:
+      strategy: hybrid          # lexical + embedding
+      freshness_required: true  # re-index on file change before planning
+
+  # ---------------------------------------------------------------------------
+  # PHASES — the lifecycle itself
+  # Each phase declares: owner, inputs, outputs, gates, and exit conditions.
+  # Phases are not strictly linear; `feedback` edges allow re-entry.
+  # ---------------------------------------------------------------------------
+  phases:
+
+    - id: ideate
+      owner: product_owner
+      assists: [planner]
+      inputs:  [user_request, telemetry_signals, learner_proposals]
+      outputs: [artifact.intent]
+      gates:   [gate.intent_clear]
+      exit_when: "intent has measurable success criteria"
+
+    - id: specify
+      owner: planner
+      inputs:  [artifact.intent]
+      outputs: [artifact.spec, artifact.acceptance_criteria]
+      gates:   [gate.spec_testable, gate.spec_scoped]
+      human_required: false
+      review_by: [maintainer]    # async review, non-blocking unless gate fails
+
+    - id: design
+      owner: architect
+      inputs:  [artifact.spec]
+      outputs: [artifact.adr, artifact.contract]
+      gates:   [gate.adr_alternatives_considered]
+      skip_when: "spec.complexity == trivial"
+
+    - id: implement
+      owner: implementer
+      inputs:  [artifact.spec, artifact.contract]
+      outputs: [artifact.code]
+      gates:   [gate.lint, gate.typecheck, gate.build]
+      conventions:
+        - "Edit before create — never duplicate an existing module."
+        - "No comments that narrate code; only intent/trade-offs."
+        - "Cite the doc path consulted in the PR description."
+
+    - id: verify
+      owner: tester
+      inputs:  [artifact.code, artifact.acceptance_criteria]
+      outputs: [artifact.test, artifact.report]
+      gates:
+        - gate.unit_tests_pass
+        - gate.acceptance_criteria_met
+        - gate.a11y_baseline
+        - gate.visual_no_unintended_diff
+      retry_policy: { max_attempts: 3, escalate_model_on_retry: true }
+
+    - id: review
+      owner: reviewer
+      inputs:  [artifact.code, artifact.spec, artifact.report]
+      outputs: [artifact.review]
+      gates:   [gate.review_approved]
+      human_required: conditional
+      human_required_when:
+        - "diff.touches('app/layout.tsx')"
+        - "diff.touches_security_surface == true"
+        - "review.confidence < 0.8"
+
+    - id: release
+      owner: releaser
+      inputs:  [artifact.code, artifact.review]
+      outputs: [artifact.release_note]
+      strategy:
+        type: progressive
+        stages: [canary_5pct, canary_25pct, full]
+        promote_when: "slo.error_rate < 0.5% AND slo.p95_latency_ms < 400"
+        rollback_when: "slo breached for 5m OR user_reported_regressions > 0"
+      human_required: true       # product_owner approves stage transitions
+      approver: product_owner
+
+    - id: operate
+      owner: operator
+      inputs:  [telemetry, user_reports]
+      outputs: [artifact.incident, artifact.postmortem]
+      gates:   [gate.incident_has_owner, gate.postmortem_blameless]
+
+    - id: learn
+      owner: learner
+      inputs:  [artifact.incident, artifact.review, telemetry]
+      outputs: [artifact.rule_update, artifact.eval_case, artifact.intent]
+      cadence: weekly
+      feedback_to: [ideate, specify, context.memory.rules]
+
+  # ---------------------------------------------------------------------------
+  # ARTIFACTS — typed outputs with required provenance
+  # ---------------------------------------------------------------------------
+  artifacts:
+    common_provenance: &provenance
+      required_fields:
+        - agent_id
+        - model
+        - prompt_hash
+        - trace_id            # LangSmith run id (see observability.tracing)
+        - inputs_digest
+        - created_at
+
+    types:
+      intent:
+        location: .sdlc/intents/{slug}.md
+        schema: { problem, users, success_metric, non_goals }
+        provenance: *provenance
+      spec:
+        location: .sdlc/specs/{slug}.md
+        schema: { summary, behavior, acceptance_criteria, risks }
+        provenance: *provenance
+      adr:
+        location: .sdlc/decisions/{NNNN}-{slug}.md
+        schema: { context, options, decision, consequences }
+        provenance: *provenance
+      contract:
+        location: .sdlc/contracts/{slug}.ts
+        notes: TypeScript types or zod schemas — machine-checkable.
+      code:
+        location: app/** | lib/** | components/**
+        provenance: *provenance
+      test:
+        location: tests/** | __tests__/**
+        kinds: [unit, integration, e2e, a11y, visual]
+      eval:
+        location: .sdlc/evals/{slug}.eval.ts
+        notes: Deterministic evals replayable in CI.
+      report:
+        location: .sdlc/reports/{run_id}.json
+      review:
+        location: .sdlc/reviews/{pr_id}.md
+        schema: { findings, severity, blockers, approvals }
+      release_note:
+        location: .sdlc/releases/{version}.md
+      incident:
+        location: .sdlc/incidents/{id}.md
+      postmortem:
+        location: .sdlc/postmortems/{id}.md
+      rule_update:
+        location: .sdlc/rules/{slug}.md
+      eval_case:
+        location: .sdlc/evals/cases/{slug}.json
+
+  # ---------------------------------------------------------------------------
+  # GATES — automated checks. A phase cannot exit until its gates pass.
+  # Each gate names the runner so it is unambiguous to humans and agents.
+  # ---------------------------------------------------------------------------
+  gates:
+    intent_clear:
+      asserts: "intent has problem, users, and a measurable success_metric"
+      runner: agent.reviewer
+
+    spec_testable:
+      asserts: "every acceptance criterion maps to a test or eval id"
+      runner: agent.reviewer
+
+    spec_scoped:
+      asserts: "spec touches < 10 files OR is split into sub-specs"
+      runner: static_check
+
+    adr_alternatives_considered:
+      asserts: "ADR lists >= 2 alternatives with trade-offs"
+      runner: agent.reviewer
+
+    lint:        { runner: shell, command: "npm run lint" }
+    typecheck:   { runner: shell, command: "npx tsc --noEmit" }
+    build:       { runner: shell, command: "npm run build" }
+    unit_tests_pass:
+      runner: shell
+      command: "npm test --silent"
+      tolerate_missing: true   # repo has no tests yet; the learner will add them
+
+    acceptance_criteria_met:
+      runner: agent.tester
+      asserts: "every criterion has a passing assertion or eval"
+
+    a11y_baseline:
+      runner: shell
+      command: "npx @axe-core/cli http://localhost:3000"
+      severity_max: serious
+
+    visual_no_unintended_diff:
+      runner: agent.tester
+      asserts: "visual diffs are explained in the spec or rejected"
+
+    review_approved:
+      runner: agent.reviewer
+      requires: [no_blockers, conventions_followed, provenance_present]
+
+    incident_has_owner:    { runner: static_check }
+    postmortem_blameless:  { runner: agent.reviewer }
+
+  # ---------------------------------------------------------------------------
+  # WORKFLOWS — reusable agent recipes invoked by phases
+  # ---------------------------------------------------------------------------
+  workflows:
+    new_feature:
+      trigger: "intent.kind == feature"
+      steps: [ideate, specify, design, implement, verify, review, release]
+
+    bugfix:
+      trigger: "intent.kind == bug"
+      steps: [specify, implement, verify, review, release]
+      shortcuts: { skip: [design], when: "spec.complexity != complex" }
+
+    chore:
+      trigger: "intent.kind in [docs, refactor, deps]"
+      steps: [implement, verify, review]
+
+    incident_response:
+      trigger: "telemetry.alert.fired == true"
+      steps: [operate, specify, implement, verify, review, release, learn]
+      sla: { triage_minutes: 15, mitigation_minutes: 60 }
+
+  # ---------------------------------------------------------------------------
+  # OBSERVABILITY — tracing every agent action
+  # ---------------------------------------------------------------------------
+  observability:
+    tracing:
+      provider: langsmith
+      project: ${env:LANGCHAIN_PROJECT}      # currently "news-app"
+      enabled_when: ${env:TRACE_TO_LANGSMITH}
+      attach_to: all_agent_runs
+      retention_days: 90
+    metrics:
+      agent_runs:        { dims: [agent_id, phase, model, outcome] }
+      gate_outcomes:     { dims: [gate, phase, outcome] }
+      cycle_time:        { from: ideate.start, to: release.full }
+      rework_rate:       { definition: "phase re-entries / total phase runs" }
+      escape_defects:    { source: incidents.linked_to_release }
+
+  # ---------------------------------------------------------------------------
+  # POLICIES — guardrails the lifecycle must respect
+  # ---------------------------------------------------------------------------
+  policies:
+    safety:
+      - id: no_secrets_in_code
+        check: gitleaks
+        on_violation: block_merge
+      - id: no_unreviewed_dependencies
+        check: "package.json diff requires review_approved"
+        on_violation: block_merge
+
+    privacy:
+      - id: no_pii_in_prompts
+        runner: agent.reviewer
+        scope: [planner, implementer, tester]
+
+    cost:
+      # All services must stay within their free tier. Any work that would
+      # exceed a free quota must pause and escalate to the maintainer.
+      tier: free_only
+      monthly_budget_usd: 0
+      per_task_budget_usd: 0
+      on_exceed: { action: pause_and_escalate, escalate_to: maintainer }
+      free_quotas:
+        github:
+          actions_minutes_per_month: 2000        # private repos; unlimited on public
+          storage_gb: 0.5
+          notes: "Prefer public repo to lift Actions limits."
+        vercel:
+          plan: hobby
+          bandwidth_gb_per_month: 100
+          serverless_invocations_per_month: 100000
+          build_minutes_per_month: 6000
+          notes: "Personal/non-commercial only on Hobby."
+        plane:
+          plan: cloud_free
+          users_max: 12
+          notes: "Use self-hosted Community if usage exceeds free cloud."
+        posthog:
+          events_per_month: 1000000
+          session_replays_per_month: 5000
+          surveys_responses_per_month: 250
+        langsmith:
+          traces_per_month: 5000
+          notes: "Already wired via .env LANGCHAIN_PROJECT=news-app."
+        llm:
+          policy: "Use only free or local models, OR provider free trial credits."
+
+    determinism:
+      - "Implementer must set temperature <= 0.2 for code edits."
+      - "Tester must use fixed seeds for evals."
+
+    autonomy:
+      max_unattended_steps: 12   # agents pause for human nudge after this many
+      pause_on:
+        - "diff > 400 LOC without spec update"
+        - "any policy violation"
+        - "second consecutive failed gate"
+
+  # ---------------------------------------------------------------------------
+  # FEEDBACK — how the loop closes
+  # ---------------------------------------------------------------------------
+  feedback:
+    sources:
+      - telemetry.errors
+      - telemetry.user_signals
+      - reviews.findings
+      - incidents.postmortems
+    sinks:
+      - context.memory.rules        # rules harden over time
+      - context.memory.eval_cases   # regressions become permanent evals
+      - phases.ideate.inputs        # surfaces as next-cycle intent
+    cadence: weekly
+    owner: learner
+
+  # ---------------------------------------------------------------------------
+  # INSTRUCTIONS — Cursor-native operator surface
+  # The DSL declares *what* must happen; these files declare *how* agents
+  # invoke and obey it inside the Cursor IDE.
+  # ---------------------------------------------------------------------------
+  instructions:
+    commands:
+      # Slash commands the user (or agents) can invoke in chat.
+      location: .cursor/commands/
+      registry:
+        - { id: /intent,    file: .cursor/commands/intent.md,    phase: ideate }
+        - { id: /spec,      file: .cursor/commands/spec.md,      phase: specify }
+        - { id: /adr,       file: .cursor/commands/adr.md,       phase: design }
+        - { id: /implement, file: .cursor/commands/implement.md, phase: implement }
+        - { id: /verify,    file: .cursor/commands/verify.md,    phase: verify }
+        - { id: /review,    file: .cursor/commands/review.md,    phase: review }
+        - { id: /release,   file: .cursor/commands/release.md,   phase: release }
+        - { id: /incident,  file: .cursor/commands/incident.md,  phase: operate }
+        - { id: /learn,     file: .cursor/commands/learn.md,     phase: learn }
+
+    skills:
+      # Project-scoped skills, auto-loaded by Cursor when descriptions match.
+      location: .cursor/skills/
+      registry:
+        - { id: nextjs-16-doc-check,  path: .cursor/skills/nextjs-16-doc-check/SKILL.md }
+        - { id: provenance-stamp,     path: .cursor/skills/provenance-stamp/SKILL.md }
+        - { id: plane-sync,           path: .cursor/skills/plane-sync/SKILL.md }
+        - { id: posthog-instrument,   path: .cursor/skills/posthog-instrument/SKILL.md }
+        - { id: browser-evidence,     path: .cursor/skills/browser-evidence/SKILL.md }
+
+    hooks:
+      # Deterministic guardrails enforced by Cursor at runtime.
+      config: .cursor/hooks.json
+      scripts_dir: .cursor/hooks/
+      registry:
+        - { event: beforeShellExecution, script: .cursor/hooks/guard-shell.sh,  purpose: "Block destructive or paid-tier commands." }
+        - { event: beforeSubmitPrompt,   script: .cursor/hooks/scan-secrets.sh, purpose: "Reject prompts containing secrets." }
+        - { event: afterFileEdit,        script: .cursor/hooks/lint-touch.sh,   purpose: "Mark touched files for re-lint." }
+        - { event: sessionStart,         script: .cursor/hooks/load-context.sh, purpose: "Inject SDLC summary + memory pointers." }
+
+    rules:
+      # Persistent agent guidance. alwaysApply rules are loaded every session.
+      location: .cursor/rules/
+      registry:
+        - { id: sdlc-loop,            file: .cursor/rules/sdlc-loop.mdc,            always_apply: true }
+        - { id: nextjs-16-conventions,file: .cursor/rules/nextjs-16-conventions.mdc, globs: "app/**/*.{ts,tsx}" }
+        - { id: tailwind-v4,          file: .cursor/rules/tailwind-v4.mdc,           globs: "**/*.{tsx,css}" }
+        - { id: provenance,           file: .cursor/rules/provenance.mdc,            always_apply: true }
+        - { id: free-tier-only,       file: .cursor/rules/free-tier-only.mdc,        always_apply: true }
+        - { id: testing-evidence,     file: .cursor/rules/testing-evidence.mdc,      globs: "tests/**/*.{ts,spec.ts}" }
+        - { id: commit-conventions,   file: .cursor/rules/commit-conventions.mdc,    always_apply: true }
+
+    memories:
+      # Project-scoped persistent knowledge the agent reloads each session.
+      # Distinct from rules: memories are *facts and learnings*, not policies.
+      location: .sdlc/memories/
+      indexed_by: .cursor/rules/sdlc-loop.mdc
+      kinds:
+        project_facts:    .sdlc/memories/project.md     # invariant facts about this app
+        learned_lessons:  .sdlc/memories/lessons.md     # appended by the learner phase
+        glossary:         .sdlc/memories/glossary.md    # terms agents must use consistently
+
+    agents:
+      # Role cards mirroring sdlc.yaml.roles.agents. Each card declares the
+      # phases owned, gates required, tools allowed, and invocation entry.
+      location: .cursor/agents/
+      registry:
+        - { id: planner,     file: .cursor/agents/planner.md,     owns: [ideate, specify] }
+        - { id: architect,   file: .cursor/agents/architect.md,   owns: [design] }
+        - { id: implementer, file: .cursor/agents/implementer.md, owns: [implement] }
+        - { id: tester,      file: .cursor/agents/tester.md,      owns: [verify] }
+        - { id: reviewer,    file: .cursor/agents/reviewer.md,    owns: [review] }
+        - { id: releaser,    file: .cursor/agents/releaser.md,    owns: [release] }
+        - { id: operator,    file: .cursor/agents/operator.md,    owns: [operate] }
+        - { id: learner,     file: .cursor/agents/learner.md,     owns: [learn] }
+
+  # ---------------------------------------------------------------------------
+  # INTEGRATIONS — external services the lifecycle is wired to
+  # All entries respect policies.cost.tier == free_only.
+  # ---------------------------------------------------------------------------
+  integrations:
+
+    github:
+      role: version_control + ci_cd
+      repo: ${env:GITHUB_REPOSITORY}            # e.g. "felipe/news-app"
+      branch_strategy:
+        default: main
+        protection:
+          require_status_checks: [ci/lint, ci/typecheck, ci/build, ci/e2e]
+          require_review_approved: true         # provided by phase.review
+          disallow_force_push_to_main: true
+      actions:
+        location: .github/workflows/
+        workflows:
+          - { id: ci,           file: .github/workflows/ci.yml,            triggers: [pull_request, push.main] }
+          - { id: preview,      file: .github/workflows/preview.yml,       triggers: [pull_request] }
+          - { id: deploy_prod,  file: .github/workflows/deploy-prod.yml,   triggers: [push.main] }
+          - { id: plane_sync,   file: .github/workflows/plane-sync.yml,    triggers: [pull_request, issues] }
+          - { id: e2e_evidence, file: .github/workflows/e2e-evidence.yml,  triggers: [pull_request] }
+      maps_to_phases: [implement, verify, review, release]
+
+    plane:
+      role: project_management
+      api_base: ${env:PLANE_API_BASE}           # e.g. https://api.plane.so
+      workspace: ${env:PLANE_WORKSPACE_SLUG}
+      project: ${env:PLANE_PROJECT_ID}
+      auth: { kind: bearer, env: PLANE_API_TOKEN }
+      mappings:
+        artifact.intent  -> plane.issue       { state: backlog,    labels: [intent] }
+        artifact.spec    -> plane.issue       { state: todo,       labels: [spec] }
+        artifact.incident-> plane.issue       { state: in_progress, labels: [incident, p1] }
+        phase.release    -> plane.cycle       { auto_close: true }
+      sync_script: scripts/plane-sync.mjs
+      maps_to_phases: [ideate, specify, operate, release]
+
+    vercel:
+      role: deployment
+      plan: hobby                                # free
+      project_name: news-app
+      framework: nextjs
+      auth: { env: VERCEL_TOKEN }
+      org_id_env: VERCEL_ORG_ID
+      project_id_env: VERCEL_PROJECT_ID
+      config_file: vercel.json
+      environments:
+        preview:    { source: pull_request, url_pattern: "https://news-app-pr-${{pr_number}}.vercel.app" }
+        production: { source: push.main,    url: "https://news-app.vercel.app" }
+      promote_when: phase.release.gate.review_approved == passed
+      maps_to_phases: [release]
+
+    posthog:
+      role: observability + product_analytics
+      plan: free
+      api_host: ${env:NEXT_PUBLIC_POSTHOG_HOST}  # default https://us.i.posthog.com
+      project_api_key_env: NEXT_PUBLIC_POSTHOG_KEY
+      personal_api_key_env: POSTHOG_PERSONAL_API_KEY
+      capture:
+        autocapture: true
+        pageviews:    true
+        web_vitals:   true
+        session_replay:
+          enabled: true
+          sample_rate: 0.1                       # respect 5k/month free quota
+          mask_all_inputs: true
+      events_taxonomy:
+        - article_viewed:   { props: [article_id, category] }
+        - article_shared:   { props: [article_id, channel] }
+        - search_performed: { props: [query, results_count] }
+      slo_signals:
+        error_rate:       posthog.metric("$exception")
+        p95_latency_ms:   posthog.metric("$web_vitals_LCP", percentile=95)
+      maps_to_phases: [verify, release, operate, learn]
+
+    browser_evidence:
+      role: automated_testing + video_evidence
+      runner: playwright
+      browsers: [chromium, firefox, webkit]
+      config_file: playwright.config.ts
+      tests_dir: tests/e2e/
+      video:
+        record: on_first_retry                  # save bandwidth on the free tier
+        keep: failures_only_plus_one_smoke_per_pr
+        artifact_path: .sdlc/reports/{run_id}/videos/
+      trace:
+        record: on_first_retry
+        artifact_path: .sdlc/reports/{run_id}/traces/
+      ci_workflow: .github/workflows/e2e-evidence.yml
+      maps_to_phases: [verify, review]
+      attaches_to:
+        - artifact.report
+        - phase.review.inputs
+
+  # ---------------------------------------------------------------------------
+  # LIFECYCLE INVARIANTS — the contract this DSL guarantees
+  # ---------------------------------------------------------------------------
+  invariants:
+    - "No artifact ships without provenance."
+    - "No phase exits with a failing gate."
+    - "No release proceeds past canary without an SLO check."
+    - "Every incident produces an eval_case before being closed."
+    - "AGENTS.md rules supersede agent priors when they conflict."
+    - "No integration may require a paid plan; free-tier breach pauses the work."
+    - "Every PR carries a Plane issue link, a Vercel preview URL, and an e2e video reference."

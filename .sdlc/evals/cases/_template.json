@@ -1,0 +1,27 @@
+{
+  "id": "EVAL-XXXX",
+  "title": "Short, descriptive title",
+  "kind": "regression | property | golden",
+  "source": {
+    "incident": "INC-XXXX",
+    "spec": "SPEC-XXXX"
+  },
+  "input": {
+    "route": "/",
+    "viewport": { "width": 1280, "height": 800 },
+    "fixtures": []
+  },
+  "assertions": [
+    { "kind": "dom",       "selector": "h1", "contains": "The Daily Brief" },
+    { "kind": "telemetry", "event": "article_viewed", "min_count_per_session": 1 },
+    { "kind": "a11y",      "max_severity": "moderate" }
+  ],
+  "provenance": {
+    "agent_id": "learner",
+    "model": "",
+    "prompt_hash": "",
+    "trace_id": "",
+    "inputs_digest": "",
+    "created_at": ""
+  }
+}
