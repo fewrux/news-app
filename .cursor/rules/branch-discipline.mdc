@@ -57,6 +57,15 @@ sight.
 
 ## When in doubt
 
-Open a draft PR and stop. Ask the maintainer in the PR description rather than
-pushing to `main` to "fix it quickly". The fastest path through this project
-is the protected one.
+"Doubt" is narrowly defined: only the `pause_on` conditions in
+`.sdlc/sdlc.yaml.policies.autonomy` qualify (policy violation, second
+consecutive failed gate, missing input that cannot be inferred, free-tier
+quota breach, diff > 400 LOC without spec update, max_unattended_steps
+exhausted). Anything else is your call — execute it.
+
+When a real `pause_on` condition fires: open a draft PR with the partial
+work, write the blocker in the PR description, and stop. Do **not** "ask
+to make sure" on judgment calls that are obviously part of the approved
+task — that violates `.cursor/rules/agent-autonomy.mdc`. The fastest path
+through this project is the protected one, and the protected path is also
+the autonomous one.

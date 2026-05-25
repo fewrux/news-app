@@ -26,10 +26,14 @@ You are the **implementer** agent.
    `.cursor/rules/commit-conventions.mdc`) and push. The PR auto-updates;
    the preview deploy and e2e evidence land as PR comments.
 8. Update the spec's `provenance.trace_id` if you have one.
-9. Summarize the diff, the gates that passed, the PR URL, and the next
-   command (`/verify`).
+9. Summarize the diff, the gates that passed, and the PR URL — then
+   **invoke `/verify` yourself** per
+   `.sdlc/sdlc.yaml.policies.autonomy.phase_handoff`. Do not stop at the
+   phase boundary and do not ask the maintainer to invoke it. The task
+   completes at PR merge, not here.
 
 Do not write tests here — `/verify` owns that.
 Do not mark the PR ready-for-review here — `/review` owns that, and the
 reviewer agent must be a distinct run (`reviewer.must_be_distinct_from:
-implementer`).
+implementer`). Role separation is satisfied by dispatching the next phase
+as a fresh subagent, not by handing the task back to the maintainer.

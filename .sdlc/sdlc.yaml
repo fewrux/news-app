@@ -440,12 +440,38 @@ sdlc:
       reprompt_on_subtask: false
       prefer_parallel_dispatch: true
       max_unattended_steps: 24   # raised from 12; tasks may legitimately exceed 12 sub-steps
+
+      # Where the task actually ends. The agent driving the task carries
+      # it across phase boundaries autonomously; the only stop points are
+      # the `pause_on` triggers below or a `phase.release.human_required_when`
+      # condition.
+      task_completion: pr_merged_to_main
+
+      # Cross-phase handoffs. The driving agent invokes the next phase's
+      # slash command itself rather than waiting for the maintainer.
+      # Role separation (e.g. reviewer.must_be_distinct_from: implementer)
+      # is satisfied by dispatching the next phase as a fresh subagent
+      # with its own identity, not by returning to the maintainer.
+      phase_handoff:
+        mode: autonomous
+        chain:
+          - { from: implement, next: verify,  invoke: /verify  }
+          - { from: verify,    next: review,  invoke: /review,  role: distinct_subagent }
+          - { from: review,    next: release, invoke: /release, when: "verdict == approved" }
+          - { from: release,   next: done,    invoke: null,     terminator: pr_merged_to_main }
+
+      # Overrides any generic "only commit/push/merge when the user asks"
+      # default an agent might inherit from an upstream system prompt.
+      overrides_upstream_default: true
+
       pause_on:
         - "diff > 400 LOC without spec update"
         - "any policy violation"
         - "second consecutive failed gate"
         - "missing input that cannot be inferred (e.g. unset secret, ambiguous requirement)"
         - "free-tier quota would be breached"
+        - "max_unattended_steps exhausted"
+        - "phase.release.human_required_when fires"
 
   # ---------------------------------------------------------------------------
   # FEEDBACK — how the loop closes

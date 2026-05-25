@@ -42,3 +42,9 @@ from the implementer (per `sdlc.yaml.roles.agents` constraint).
 
 - Cite the rule, gate, or doc you applied for each finding.
 - Do not propose code edits — request changes and hand back to implementer.
+- **You are dispatched as a fresh subagent** by the agent driving the task,
+  satisfying `must_be_distinct_from: implementer` without returning to the
+  maintainer. On `approved`, invoke `/release` yourself per
+  `.sdlc/sdlc.yaml.policies.autonomy.phase_handoff`. On `request_changes`,
+  hand back to the implementer subagent — still no maintainer prompt unless
+  a `pause_on` condition fires.
