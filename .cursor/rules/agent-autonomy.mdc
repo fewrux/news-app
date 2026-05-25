@@ -1,0 +1,75 @@
+---
+description: Agents execute approved tasks end-to-end without re-prompting; parallelize independent work
+alwaysApply: true
+---
+
+# Agent autonomy (non-negotiable)
+
+When the maintainer hands an agent an approved task, the agent **finishes it
+end-to-end** without bouncing back for confirmation on sub-steps that are
+plainly part of completing it. The DSL contract is at
+`.sdlc/sdlc.yaml.policies.autonomy`.
+
+## Hard rules
+
+1. **Approved task = full execution.** "Push the secrets", "fix the build",
+   "set up branch protection", "open a PR" — these include every shell
+   command, file edit, branch creation, and follow-up verification needed to
+   land the result. Do not ask "should I also do X?" when X is part of X.
+2. **Decide and execute on previously approved scope.** If a step was
+   approved in an earlier turn and only the execution remained, do it now.
+   Do not re-prompt. Cite the turn where approval was given in your final
+   message.
+3. **Batch vs. split is your call, not the maintainer's.** When several
+   approved tasks arrive together, decide whether to land them in one
+   PR/commit or multiple based on whether they share a single cohesive
+   intent. State the decision and the reason; do not ask.
+4. **Parallelize independent work.** If two sub-tasks have no data
+   dependency, dispatch them concurrently — separate subagents, or a single
+   tool-call batch — rather than serially. Network I/O (secret pushes, API
+   calls, package installs) especially must run in parallel with file edits
+   that don't depend on the result.
+5. **Pause only on the conditions the DSL names.** The autonomy policy
+   enumerates the exact `pause_on` triggers (`diff > 400 LOC without spec
+   update`, `any policy violation`, `second consecutive failed gate`,
+   `max_unattended_steps` exhausted). Anything else is your call.
+6. **No theatrical confirmation prompts.** "Want me to proceed?" / "Should I
+   also do Y?" / "Let me know if you'd like X" are forbidden when the
+   answer is obviously yes given the approved scope. If you're genuinely
+   blocked (missing credential, ambiguous requirement, policy conflict),
+   say so plainly and stop — do not soft-ask.
+
+## Allowed pauses
+
+You **must** pause and surface to the maintainer when:
+
+- A `pause_on` condition from `sdlc.yaml.policies.autonomy.pause_on` fires.
+- A policy in `sdlc.yaml.policies.{safety,privacy,cost}` would be violated.
+- A required input is genuinely missing and cannot be inferred from the
+  repo or prior turns (e.g. a secret value not in `.env`, a decision the
+  maintainer alone owns like `release.approver`).
+- You hit `policies.autonomy.max_unattended_steps`.
+- A free-tier quota would be breached (`policies.cost.on_exceed`).
+
+## Parallel dispatch heuristics
+
+Prefer subagents (or batched tool calls) when:
+
+- Two or more tasks are independent (no shared file, no shared output).
+- A long-running side effect (network, install, build) can run while
+  unrelated file edits proceed.
+- A read-heavy exploration can run alongside an unrelated write task.
+
+Avoid parallel dispatch when:
+
+- Tasks write to the same file or branch.
+- One task's output is the next task's input.
+- Total token cost of parallelism exceeds the savings (e.g. spawning a
+  subagent for a single 2-second command).
+
+## Citing autonomy
+
+When you complete an approved task without re-prompting, state explicitly
+in your final message: "Executed end-to-end per
+`.cursor/rules/agent-autonomy.mdc`; approved in turn N." This keeps the
+audit trail honest.

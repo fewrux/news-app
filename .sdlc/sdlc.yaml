@@ -209,8 +209,18 @@ sdlc:
         stages: [canary_5pct, canary_25pct, full]
         promote_when: "slo.error_rate < 0.5% AND slo.p95_latency_ms < 400"
         rollback_when: "slo breached for 5m OR user_reported_regressions > 0"
-      human_required: true       # product_owner approves stage transitions
-      approver: product_owner
+      # Success metric: zero human fingers lifted. Releases are autonomous
+      # by default; humans gate only the genuinely high-risk subset.
+      human_required: conditional
+      human_required_when:
+        - "diff.touches_security_surface == true"
+        - "diff.includes_schema_migration == true"
+        - "spec.risks.includes('user_data_loss')"
+        - "release.kind == hotfix AND prior_incident.severity in [p0, p1]"
+        - "release.confidence < 0.7"
+      default_approval: agent          # releaser agent approves stage transitions
+      escalate_to: product_owner       # only when a human_required_when triggers
+      approver: releaser
 
     - id: operate
       owner: operator
@@ -421,11 +431,21 @@ sdlc:
       - "Tester must use fixed seeds for evals."
 
     autonomy:
-      max_unattended_steps: 12   # agents pause for human nudge after this many
+      # Approved tasks execute end-to-end. Agents do not re-prompt for
+      # approval on sub-steps that are plainly part of completing the
+      # approved task. They decide batch-vs-split themselves and prefer
+      # parallel subagent dispatch for independent work.
+      # Enforcement: .cursor/rules/agent-autonomy.mdc (alwaysApply).
+      execute_end_to_end: true
+      reprompt_on_subtask: false
+      prefer_parallel_dispatch: true
+      max_unattended_steps: 24   # raised from 12; tasks may legitimately exceed 12 sub-steps
       pause_on:
         - "diff > 400 LOC without spec update"
         - "any policy violation"
         - "second consecutive failed gate"
+        - "missing input that cannot be inferred (e.g. unset secret, ambiguous requirement)"
+        - "free-tier quota would be breached"
 
   # ---------------------------------------------------------------------------
   # FEEDBACK — how the loop closes
@@ -494,6 +514,8 @@ sdlc:
         - { id: free-tier-only,       file: .cursor/rules/free-tier-only.mdc,        always_apply: true }
         - { id: testing-evidence,     file: .cursor/rules/testing-evidence.mdc,      globs: "tests/**/*.{ts,spec.ts}" }
         - { id: commit-conventions,   file: .cursor/rules/commit-conventions.mdc,    always_apply: true }
+        - { id: branch-discipline,    file: .cursor/rules/branch-discipline.mdc,     always_apply: true }
+        - { id: agent-autonomy,       file: .cursor/rules/agent-autonomy.mdc,        always_apply: true }
 
     memories:
       # Project-scoped persistent knowledge the agent reloads each session.
@@ -626,3 +648,6 @@ sdlc:
     - "AGENTS.md rules supersede agent priors when they conflict."
     - "No integration may require a paid plan; free-tier breach pauses the work."
     - "Every PR carries a Plane issue link, a Vercel preview URL, and an e2e video reference."
+    - "main is protected; changes land via approved PR only; no bypass for any actor."
+    - "Approved tasks execute end-to-end; agents do not re-prompt for sub-step approval."
+    - "Releases are agent-driven by default; humans approve only when phase.release.human_required_when triggers."

@@ -15,7 +15,9 @@ This repo runs an AI-native SDLC. The contract is `.sdlc/sdlc.yaml`; humans writ
 - Free tier only across every integration (`.cursor/rules/free-tier-only.mdc`). Anything that would exceed a quota must `pause_and_escalate` to the maintainer.
 - A reviewer agent run MUST be distinct from the implementer run for the same change.
 - Every PR carries a Plane issue link, a Vercel preview URL, and an e2e video reference.
-- No `git config --global`, no force-push to `main`, no skipping hooks. The `beforeShellExecution` hook will block these.
+- **`main` is protected. Trunk-based, PR-only, no bypass.** No `git push` to `main`, no commits while checked out on `main`, no `--admin` PR merges. Work on `feat/*`, `fix/*`, `chore/*`, or `hotfix/*` branches and merge via approved PR. See `.cursor/rules/branch-discipline.mdc`; the `beforeShellExecution` hook enforces this mechanically.
+- **Approved tasks execute end-to-end.** Do not re-prompt for confirmation on sub-steps of an approved task; decide batch-vs-split yourself; prefer parallel subagent dispatch for independent work. Pause only on the conditions enumerated in `sdlc.yaml.policies.autonomy.pause_on`. See `.cursor/rules/agent-autonomy.mdc`.
+- No `git config --global`, no force-push to any branch, no skipping hooks. The `beforeShellExecution` hook will block these.
 
 **Entry points (use the slash commands — they enforce phases and gates):**
 
