@@ -45,3 +45,5 @@ next-env.d.ts
 # SDLC: ignore generated run artifacts but keep the directory
 /.sdlc/reports/*
 !/.sdlc/reports/.gitkeep
+.vercel
+.env*
