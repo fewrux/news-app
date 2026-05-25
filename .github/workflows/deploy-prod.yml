@@ -24,6 +24,9 @@ jobs:
 
       - run: npm install --global vercel@latest
 
+      - name: Verify Vercel token
+        run: vercel whoami --token=${{ secrets.VERCEL_TOKEN }}
+
       - name: Link Vercel project
         run: |
           mkdir -p .vercel
