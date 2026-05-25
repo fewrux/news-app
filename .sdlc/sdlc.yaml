@@ -520,12 +520,28 @@ sdlc:
     memories:
       # Project-scoped persistent knowledge the agent reloads each session.
       # Distinct from rules: memories are *facts and learnings*, not policies.
+      # Distinct from artifacts: memories are unbounded-write-rate digests,
+      # not provenance-stamped immutable records.
       location: .sdlc/memories/
       indexed_by: .cursor/rules/sdlc-loop.mdc
       kinds:
-        project_facts:    .sdlc/memories/project.md     # invariant facts about this app
-        learned_lessons:  .sdlc/memories/lessons.md     # appended by the learner phase
-        glossary:         .sdlc/memories/glossary.md    # terms agents must use consistently
+        project_facts:        .sdlc/memories/project.md              # invariant facts about this app
+        operational_context:  .sdlc/memories/operational-context.md  # rolling: in-progress + recently completed (capped)
+        architecture:         .sdlc/memories/architecture.md         # orientation + pointers to ADRs
+        business_rules:       .sdlc/memories/business-rules.md       # product rules for The Daily Brief
+        glossary:             .sdlc/memories/glossary.md             # terms agents must use consistently
+        incidents:            .sdlc/memories/incidents.md            # rolling digest of open + recently resolved incidents
+        learned_lessons:      .sdlc/memories/lessons.md              # appended by the learner phase
+      session_reload_order:
+        # The order the sessionStart hook surfaces these in and that
+        # sdlc-loop.mdc enforces. Read top-down before acting.
+        - project_facts
+        - operational_context
+        - architecture
+        - business_rules
+        - glossary
+        - incidents
+        - learned_lessons
 
     agents:
       # Role cards mirroring sdlc.yaml.roles.agents. Each card declares the
