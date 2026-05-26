@@ -194,16 +194,10 @@ sdlc:
       inputs:  [artifact.code, artifact.spec, artifact.report]
       outputs: [artifact.review]
       gates:   [gate.review_approved]
-      # gate.review_approved is satisfied by the reviewer-agent verdict
-      # file (.sdlc/reviews/<pr_id>.md, verdict: approved). No separate
-      # GitHub-identity approval click is required.
       human_required: conditional
       human_required_when:
         - "diff.touches('app/layout.tsx')"
         - "diff.touches_security_surface == true"
-          # security_surface includes: auth code, response headers, secrets/env,
-          # and security-enforcing hooks (.cursor/hooks/guard-shell.mjs).
-          # Informational hooks (load-context.mjs, session-start.*) are excluded.
         - "review.confidence < 0.8"
 
     - id: release
@@ -446,38 +440,12 @@ sdlc:
       reprompt_on_subtask: false
       prefer_parallel_dispatch: true
       max_unattended_steps: 24   # raised from 12; tasks may legitimately exceed 12 sub-steps
-
-      # Where the task actually ends. The agent driving the task carries
-      # it across phase boundaries autonomously; the only stop points are
-      # the `pause_on` triggers below or a `phase.release.human_required_when`
-      # condition.
-      task_completion: pr_merged_to_main
-
-      # Cross-phase handoffs. The driving agent invokes the next phase's
-      # slash command itself rather than waiting for the maintainer.
-      # Role separation (e.g. reviewer.must_be_distinct_from: implementer)
-      # is satisfied by dispatching the next phase as a fresh subagent
-      # with its own identity, not by returning to the maintainer.
-      phase_handoff:
-        mode: autonomous
-        chain:
-          - { from: implement, next: verify,  invoke: /verify  }
-          - { from: verify,    next: review,  invoke: /review,  role: distinct_subagent }
-          - { from: review,    next: release, invoke: /release, when: "verdict == approved" }
-          - { from: release,   next: done,    invoke: null,     terminator: pr_merged_to_main }
-
-      # Overrides any generic "only commit/push/merge when the user asks"
-      # default an agent might inherit from an upstream system prompt.
-      overrides_upstream_default: true
-
       pause_on:
         - "diff > 400 LOC without spec update"
         - "any policy violation"
         - "second consecutive failed gate"
         - "missing input that cannot be inferred (e.g. unset secret, ambiguous requirement)"
         - "free-tier quota would be breached"
-        - "max_unattended_steps exhausted"
-        - "phase.release.human_required_when fires"
 
   # ---------------------------------------------------------------------------
   # FEEDBACK — how the loop closes
@@ -552,28 +520,12 @@ sdlc:
     memories:
       # Project-scoped persistent knowledge the agent reloads each session.
       # Distinct from rules: memories are *facts and learnings*, not policies.
-      # Distinct from artifacts: memories are unbounded-write-rate digests,
-      # not provenance-stamped immutable records.
       location: .sdlc/memories/
       indexed_by: .cursor/rules/sdlc-loop.mdc
       kinds:
-        project_facts:        .sdlc/memories/project.md              # invariant facts about this app
-        operational_context:  .sdlc/memories/operational-context.md  # rolling: in-progress + recently completed (capped)
-        architecture:         .sdlc/memories/architecture.md         # orientation + pointers to ADRs
-        business_rules:       .sdlc/memories/business-rules.md       # product rules for The Daily Brief
-        glossary:             .sdlc/memories/glossary.md             # terms agents must use consistently
-        incidents:            .sdlc/memories/incidents.md            # rolling digest of open + recently resolved incidents
-        learned_lessons:      .sdlc/memories/lessons.md              # appended by the learner phase
-      session_reload_order:
-        # The order the sessionStart hook surfaces these in and that
-        # sdlc-loop.mdc enforces. Read top-down before acting.
-        - project_facts
-        - operational_context
-        - architecture
-        - business_rules
-        - glossary
-        - incidents
-        - learned_lessons
+        project_facts:    .sdlc/memories/project.md     # invariant facts about this app
+        learned_lessons:  .sdlc/memories/lessons.md     # appended by the learner phase
+        glossary:         .sdlc/memories/glossary.md    # terms agents must use consistently
 
     agents:
       # Role cards mirroring sdlc.yaml.roles.agents. Each card declares the
@@ -601,14 +553,13 @@ sdlc:
       branch_strategy:
         default: main
         protection:
-          require_status_checks: [ci/lint, ci/typecheck, ci/build, ci/e2e]
-          require_review_approved: false
-          # Review gate is satisfied by the reviewer-agent verdict file
-          # (.sdlc/reviews/<pr_id>.md, verdict: approved), not by a
-          # GitHub-side approval click. There is no separate GitHub identity
-          # for the reviewer agent; requiring a UI click creates a human
-          # gate that defeats agent autonomy. The DSL review artifact IS
-          # the authoritative approval record.
+          # ci/review-gate is the authoritative platform-layer enforcement of
+          # gate.review_approved (see ADR-0001). It reads the SDLC artifact at
+          # .sdlc/reviews/PR-<N>.md and replaces GitHub's require_review_approved,
+          # which mis-fires on solo-maintainer setups where implementer and
+          # reviewer agent runs share one GitHub user identity.
+          require_status_checks: [ci/lint, ci/typecheck, ci/build, ci/e2e, ci/review-gate]
+          require_review_approved: false        # superseded by ci/review-gate per ADR-0001
           disallow_force_push_to_main: true
       actions:
         location: .github/workflows/
@@ -617,7 +568,6 @@ sdlc:
           - { id: preview,      file: .github/workflows/preview.yml,       triggers: [pull_request] }
           - { id: deploy_prod,  file: .github/workflows/deploy-prod.yml,   triggers: [push.main] }
           - { id: plane_sync,   file: .github/workflows/plane-sync.yml,    triggers: [pull_request, issues] }
-          - { id: docs_sync,    file: .github/workflows/docs-sync.yml,     triggers: [push.main, workflow_dispatch] }
           - { id: e2e_evidence, file: .github/workflows/e2e-evidence.yml,  triggers: [pull_request] }
       maps_to_phases: [implement, verify, review, release]
 
@@ -632,14 +582,7 @@ sdlc:
         artifact.spec    -> plane.issue       { state: todo,       labels: [spec] }
         artifact.incident-> plane.issue       { state: in_progress, labels: [incident, p1] }
         phase.release    -> plane.cycle       { auto_close: true }
-        # Human-readable project documentation lives in `docs/` and is
-        # mirrored into Plane as native pages. Upserts are keyed by
-        # `external_id = "docs/<filename>"` so the script is idempotent.
-        # The page CRUD API is Cloud-only today (see
-        # https://github.com/makeplane/plane/issues/8986 for self-hosted).
-        docs/*.md        -> plane.page        { external_source: news-app-docs }
       sync_script: scripts/plane-sync.mjs
-      sync_workflow: .github/workflows/docs-sync.yml   # for docs-only sync on push.main
       maps_to_phases: [ideate, specify, operate, release]
 
     vercel:

@@ -83,3 +83,56 @@ jobs:
         env:
           NEXT_PUBLIC_POSTHOG_KEY: ${{ secrets.NEXT_PUBLIC_POSTHOG_KEY }}
           NEXT_PUBLIC_POSTHOG_HOST: ${{ secrets.NEXT_PUBLIC_POSTHOG_HOST }}
+
+  review-gate:
+    # Authoritative platform-layer enforcement of gate.review_approved per ADR-0001.
+    # Reads .sdlc/reviews/PR-<N>.md (the artifact the reviewer agent owns) and
+    # asserts a distinct-identity approval. This replaces GitHub's
+    # require_review_approved, which mis-fired on solo-maintainer setups where
+    # implementer and reviewer agent runs share one GitHub user identity.
+    # See .cursor/rules/branch-discipline.mdc and
+    # .sdlc/sdlc.yaml.integrations.github.branch_strategy.protection.
+    if: github.event.pull_request != null
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Verify .sdlc/reviews/PR-${{ github.event.pull_request.number }}.md
+        shell: bash
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          file=".sdlc/reviews/PR-${PR_NUMBER}.md"
+          if [ ! -f "$file" ]; then
+            echo "::error file=.sdlc/reviews/::missing $file — the reviewer agent must commit its verdict to this branch before merge (gate.review_approved)"
+            exit 1
+          fi
+
+          # Extract YAML frontmatter: lines after first '---' until second '---'.
+          frontmatter=$(awk 'BEGIN{c=0} /^---[[:space:]]*$/{c++; if (c>=2) exit; next} c==1{print}' "$file")
+          if [ -z "$frontmatter" ]; then
+            echo "::error file=${file}::no YAML frontmatter found"
+            exit 1
+          fi
+
+          assert_kv() {
+            local pattern="$1"
+            local label="$2"
+            if ! printf '%s\n' "$frontmatter" | grep -qE "$pattern"; then
+              echo "::error file=${file}::frontmatter missing or wrong: $label"
+              exit 1
+            fi
+          }
+
+          # verdict: approved   (top-level, exactly that token)
+          assert_kv '^verdict:[[:space:]]+approved[[:space:]]*$' "verdict: approved"
+          # provenance.agent_id: reviewer   (indented under provenance:)
+          assert_kv '^[[:space:]]+agent_id:[[:space:]]+reviewer[[:space:]]*$' "provenance.agent_id: reviewer"
+          # implementer_distinct_from_reviewer: true   (top-level)
+          assert_kv '^implementer_distinct_from_reviewer:[[:space:]]+true[[:space:]]*$' "implementer_distinct_from_reviewer: true"
+          # pr_id matches the PR number (defensive: prevents copy-paste mismatches)
+          assert_kv "^pr_id:[[:space:]]+${PR_NUMBER}[[:space:]]*$" "pr_id: ${PR_NUMBER}"
+
+          echo "::notice file=${file}::gate.review_approved: pass (verdict=approved, agent_id=reviewer, distinct=true, pr_id=${PR_NUMBER})"

@@ -9,12 +9,22 @@ This project is **trunk-based**. `main` is the only long-lived branch and it is
 **protected**. The contract is declared in
 `.sdlc/sdlc.yaml.integrations.github.branch_strategy.protection`:
 
-- `require_status_checks: [ci/lint, ci/typecheck, ci/build, ci/e2e]`
-- `require_review_approved: false` (gate satisfied by reviewer-agent verdict
-  file `.sdlc/reviews/<pr_id>.md` with `verdict: approved`; no GitHub-side
-  approval click required — the project has no separate GitHub identity for
-  the reviewer agent)
+- `require_status_checks: [ci/lint, ci/typecheck, ci/build, ci/e2e, ci/review-gate]`
+- `require_review_approved: false` (superseded by `ci/review-gate` per ADR-0001)
 - `disallow_force_push_to_main: true`
+
+`gate.review_approved` is enforced via the **SDLC artifact**, not via GitHub's
+native review event. The `ci/review-gate` job in `.github/workflows/ci.yml`
+reads `.sdlc/reviews/PR-<N>.md` and asserts:
+
+- `verdict: approved` in the frontmatter
+- `provenance.agent_id: reviewer`
+- `implementer_distinct_from_reviewer: true`
+- `pr_id` matches the PR number
+
+The reviewer agent must commit `.sdlc/reviews/PR-<N>.md` to the PR branch
+before the merge gate is satisfied. See ADR-0001 for why platform-level
+`require_review_approved` was replaced.
 
 That contract is binding on **every actor — human or agent**. There is no
 bypass list. The maintainer does not push directly; the agents do not push
@@ -51,26 +61,15 @@ Every PR carries:
 - A Plane issue link (via `scripts/plane-sync.mjs`)
 - A Vercel preview URL (auto-posted by `.github/workflows/preview.yml`)
 - An e2e video reference (per `.cursor/skills/browser-evidence/SKILL.md`)
-- A reviewer-agent verdict file (`.sdlc/reviews/<pr_id>.md`) with
-  `verdict: approved`, written by a distinct subagent run
-  (`reviewer.constraints.must_be_distinct_from: implementer`).
-  No GitHub-side approval click is required; the DSL artifact is the
-  authoritative record.
+- A review approval from the **reviewer agent** identity, which must be
+  distinct from the implementer (`reviewer.constraints.must_be_distinct_from:
+  implementer`).
 
 A PR missing any of those is not mergeable. The reviewer agent rejects on
 sight.
 
 ## When in doubt
 
-"Doubt" is narrowly defined: only the `pause_on` conditions in
-`.sdlc/sdlc.yaml.policies.autonomy` qualify (policy violation, second
-consecutive failed gate, missing input that cannot be inferred, free-tier
-quota breach, diff > 400 LOC without spec update, max_unattended_steps
-exhausted). Anything else is your call — execute it.
-
-When a real `pause_on` condition fires: open a draft PR with the partial
-work, write the blocker in the PR description, and stop. Do **not** "ask
-to make sure" on judgment calls that are obviously part of the approved
-task — that violates `.cursor/rules/agent-autonomy.mdc`. The fastest path
-through this project is the protected one, and the protected path is also
-the autonomous one.
+Open a draft PR and stop. Ask the maintainer in the PR description rather than
+pushing to `main` to "fix it quickly". The fastest path through this project
+is the protected one.
