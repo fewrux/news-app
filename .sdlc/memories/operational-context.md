@@ -15,30 +15,28 @@
 >   the detail here.
 
 last_updated: 2026-05-28
-updated_by: implementer
+updated_by: releaser
 
 ## In progress (max 5)
 
-- **SDLC surface consolidation** — implementing on PR #8
-  (`chore/sdlc-surface-consolidation`). Demotes `provenance` /
-  `commit-conventions` / `branch-discipline` from always-applied to
-  glob-scoped or agent-requested (each has a mechanical complement:
-  `gate.review_approved.requires.provenance_present` for provenance,
-  `guard-shell.mjs` for branch discipline). Trims `agent-autonomy.mdc`
-  (≤30) and `sdlc-loop.mdc` (≤20) to thin pointers into the DSL
-  (autonomy override sentence preserved verbatim). Slims
-  `load-context.mjs` to dynamic-only; **SPEC-0003 AC-6 amended this
-  session** to also slim the open-handoffs queue to ids-only and emit a
-  non-optional first-reply directive. Removes the duplicate paragraph in
-  `AGENTS.md`. Deliberately does **not** touch the `.sh`/`.mjs` drift in
-  `sdlc.yaml.instructions.hooks.registry` or the legacy `plane_issue:`
-  field on INT-0001 — both are SPEC-0002 AC-11 smoke tests for the
-  doctor's first run.
-  Refs: INT-0004, SPEC-0003, ADR-0004, PR #8,
-  HANDOFF-2026-05-28-sdlc-surface-consolidation.
+- _none_
 
 ## Recently completed (max 5, last 14 days)
 
+- **SDLC surface consolidation** — PR #8, released as **v0.1.1**
+  (`.sdlc/releases/v0.1.1.md`). Made `sdlc.yaml` canonical and trimmed the
+  always-applied rule tier: demoted `provenance` / `commit-conventions` /
+  `branch-discipline` to glob-scoped or agent-requested (each retains a
+  mechanical complement — `gate.review_approved.requires.provenance_present`,
+  `guard-shell.mjs`); trimmed `agent-autonomy.mdc` (30 lines) and
+  `sdlc-loop.mdc` (20 lines) to thin DSL pointers (override sentence
+  verbatim); slimmed `load-context.mjs` to dynamic-only and (SPEC-0003 AC-6
+  amended this session) reduced the open-handoffs banner to ids-only + a
+  non-optional first-reply directive; de-duplicated the `AGENTS.md`
+  sessionStart paragraph. Combined always-applied line count 386 → 78
+  (≈80% cut). Deliberately left the `.sh`/`.mjs` hooks-registry drift and
+  INT-0001 `plane_issue:` untouched (SPEC-0002 doctor smoke tests).
+  Refs: INT-0004, SPEC-0003, ADR-0004.
 - **Handoff system + doctor design (dogfood doctor via /handoff)** — PR #7,
   released as **v0.1.0** (`.sdlc/releases/v0.1.0.md`). Shipped the
   cross-session handoff system end-to-end (artifact type, INDEX.md queue,
@@ -60,9 +58,6 @@ updated_by: implementer
 - **SDLC discoverability + operational memory + autonomy lockdown** — PR #2.
   docs/, README, GEMINI.md, copilot-instructions, structure CI guard;
   4 new memory files; phase-handoff chain declared autonomous end-to-end.
-- **Trunk-based discipline + agent autonomy v1 hardened**
-  — PR #1 (`f39c7ca`). Added `branch-discipline.mdc`, `agent-autonomy.mdc`,
-  `guard-shell.mjs` enforcement.
 
 ## Next up (max 3)
 
