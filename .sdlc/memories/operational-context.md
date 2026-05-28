@@ -14,15 +14,25 @@
 >   (`SPEC-NNNN`, `INC-NNNN`, PR #, `.sdlc/...` path). Do **not** inline
 >   the detail here.
 
-last_updated: 2026-05-25
-updated_by: implementer
+last_updated: 2026-05-28
+updated_by: releaser
 
 ## In progress (max 5)
 
-- _none_
+_none_
 
 ## Recently completed (max 5, last 14 days)
 
+- **Handoff system + doctor design (dogfood doctor via /handoff)** — PR #7,
+  released as **v0.1.0** (`.sdlc/releases/v0.1.0.md`). Shipped the
+  cross-session handoff system end-to-end (artifact type, INDEX.md queue,
+  `/handoff` command, doctor identity card, load-context hook extension,
+  vendor-agnostic tracker adapter contract); pre-wrote the doctor's INT-0003
+  + ADR-0003 + SPEC-0002; dogfood handoff
+  `HANDOFF-2026-05-28-sdlc-doctor` filed and **remains open** for the next
+  session to pick up. Bundled YAML fix:
+  `integrations.plane.mappings` pseudo-arrow notation now valid YAML.
+  Refs: SPEC-0001, SPEC-0002, ADR-0002, ADR-0003.
 - **Review-gate rules relaxed** — PR #5 (`4f43dbf`). `require_review_approved`
   set to `false` (no GitHub-identity click needed; reviewer-agent verdict
   file is authoritative). Security-surface escalation narrowed to
@@ -37,18 +47,19 @@ updated_by: implementer
 - **Trunk-based discipline + agent autonomy v1 hardened**
   — PR #1 (`f39c7ca`). Added `branch-discipline.mdc`, `agent-autonomy.mdc`,
   `guard-shell.mjs` enforcement.
-- **Vercel CI deploy unblocked** — `e473257`/`91ec09a`/`2ce76ab`.
 
 ## Next up (max 3)
 
+- **Implement SPEC-0002 (SDLC doctor)** via the handoff dispatched in PR #7:
+  ` scripts/sdlc-doctor.mjs` mechanical layer, `.cursor/commands/doctor.md`,
+  `.cursor/skills/sdlc-doctor/SKILL.md`, `.github/workflows/doctor.yml`
+  (advisory), and the agentic layer in `.cursor/agents/doctor.md`'s
+  behavior block. See HANDOFF-2026-05-28-sdlc-doctor for context.
 - Kick `.github/workflows/docs-sync.yml` via `workflow_dispatch` to land
   the remaining 5 Plane pages (observability, provenance, sdlc-overview,
   slash-commands, testing) from a GitHub runner IP (fresh Cloudflare state).
 - Clean up Plane workspace via the UI: delete ~9 zombie + 3 probe pages
   by filtering `external_source = news-app-docs-probe`.
-- Ship `fix/sdlc-yaml-plane-mappings`: the `artifact.intent -> plane.issue`
-  pseudo-arrow notation in `sdlc.yaml` lines ~619-628 is not valid YAML;
-  convert to a proper list-of-mappings.
 
 ## Blocked / waiting (max 3)
 

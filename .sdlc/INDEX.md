@@ -21,14 +21,16 @@ produced or consumed by a phase declared in that contract.
 .sdlc/
 ├── sdlc.yaml              The DSL — single source of truth
 ├── INDEX.md               This file
+├── baseline.yaml          Doctor's lean derived-first baseline (SPEC-0002, regenerated via /doctor --refresh-baseline)
 ├── intents/               Raw user/operator intent (kind + success metric)
 ├── specs/                 Testable specs derived from intents
 ├── decisions/             ADRs — architectural decisions, immutable history
+├── handoffs/              Cross-session work bridges (SPEC-0001); INDEX.md is the queue
 ├── contracts/             TS / zod schemas — machine-checkable interfaces
 ├── evals/
 │   └── cases/             JSON regression cases pinned by the learner
 ├── reports/               CI run output (videos, traces, JSON)  [NOT versioned]
-├── reviews/               Review verdicts produced by the reviewer agent
+├── reviews/               Reviewer verdicts (PR-<N>.md) + doctor reports (doctor-<date>.md)
 ├── releases/              Release notes (one per Vercel production deploy)
 ├── incidents/             Incident records (timeline + mitigation)
 ├── postmortems/           Blameless postmortems linked to incidents
@@ -50,10 +52,11 @@ produced or consumed by a phase declared in that contract.
 | `intents/`     | planner   | ideate           | `intents/_template.md`                  | yes |
 | `specs/`       | planner   | specify          | `specs/_template.md`                    | yes |
 | `decisions/`   | architect | design           | `decisions/_template.md`                | yes |
+| `handoffs/`    | planner   | handoff          | `handoffs/_template.md`                 | yes |
 | `contracts/`   | architect | design           | —                                       | yes |
 | `evals/cases/` | learner   | verify, learn    | `evals/cases/_template.json`            | yes |
 | `reports/`     | tester    | verify           | —                                       | **no** |
-| `reviews/`     | reviewer  | review           | —                                       | yes |
+| `reviews/`     | reviewer + doctor | review     | —                                       | yes |
 | `releases/`    | releaser  | release          | —                                       | yes |
 | `incidents/`   | operator  | operate          | `incidents/_template.md`                | yes |
 | `postmortems/` | operator  | operate          | `postmortems/_template.md`              | yes |
@@ -81,12 +84,14 @@ provenance:
 | `/intent`     | `intents/INT-NNNN-*.md` |
 | `/spec`       | `specs/SPEC-NNNN-*.md`  |
 | `/adr`        | `decisions/NNNN-*.md`   |
+| `/handoff`    | `handoffs/HANDOFF-<date>-<slug>.md` + appends to `handoffs/INDEX.md` |
 | `/implement`  | `app/`, `lib/` (not `.sdlc/`) |
 | `/verify`     | `evals/cases/`, `reports/<run_id>/` |
 | `/review`     | `reviews/<pr_id>.md`    |
 | `/release`    | `releases/<version>.md` |
 | `/incident`   | `incidents/INC-XXXX.md` |
 | `/learn`      | `rules/`, `evals/cases/`, `memories/lessons.md`, new intents |
+| `/doctor`     | `reviews/doctor-<YYYY-MM-DD>.md` (read-only; SPEC-0002, behavior shipping next) |
 
 See `.cursor/INDEX.md` for the full operator surface (rules, hooks, agents,
 skills) that drives this directory.
