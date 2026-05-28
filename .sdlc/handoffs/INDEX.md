@@ -36,6 +36,7 @@ not change shape, only the `<provider>` token does.
 ## open
 
 - HANDOFF-2026-05-28-sdlc-doctor  intent:INT-0003  spec:SPEC-0002  adrs:ADR-0003  tracker:plane:b9a9731b-a904-43e2-94de-06faf629e274  created:2026-05-28
+- HANDOFF-2026-05-28-sdlc-surface-consolidation  intent:INT-0004  spec:SPEC-0003  adrs:ADR-0004  tracker:plane:6b6e6017-9d21-4332-8688-dc235b7180ab  created:2026-05-28
 
 ## in_progress
 

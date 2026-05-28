@@ -15,11 +15,26 @@
 >   the detail here.
 
 last_updated: 2026-05-28
-updated_by: releaser
+updated_by: planner
 
 ## In progress (max 5)
 
-_none_
+- **SDLC surface consolidation** — handoff
+  `HANDOFF-2026-05-28-sdlc-surface-consolidation` filed.
+  Demotes `provenance` / `commit-conventions` / `branch-discipline`
+  from always-applied to glob-scoped or agent-requested (each has a
+  mechanical complement: `gate.review_approved.requires.provenance_present`
+  for provenance, `guard-shell.mjs` for branch discipline). Trims
+  `agent-autonomy.mdc` and `sdlc-loop.mdc` to thin pointers into the
+  DSL (autonomy override sentence preserved verbatim). Slims
+  `load-context.mjs` to dynamic-only (open-handoffs queue stays).
+  Removes the duplicate paragraph in `AGENTS.md`. Deliberately does
+  **not** touch the `.sh`/`.mjs` drift in
+  `sdlc.yaml.instructions.hooks.registry` or the legacy
+  `plane_issue:` field on INT-0001 — both are SPEC-0002 AC-11
+  smoke tests for the doctor's first run.
+  Refs: INT-0004, SPEC-0003, ADR-0004,
+  HANDOFF-2026-05-28-sdlc-surface-consolidation.
 
 ## Recently completed (max 5, last 14 days)
 
