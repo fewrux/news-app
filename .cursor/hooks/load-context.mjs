@@ -32,7 +32,10 @@ function readOpenHandoffs() {
   const section = headingEnd === -1 ? after : after.slice(0, headingEnd + 1);
   const lines = section.split("\n");
   const entries = lines.filter((l) => /^\s*-\s+HANDOFF-/.test(l));
-  return entries.map((l) => l.replace(/^\s*-\s+/, "").trim());
+  // Slim to the canonical handoff id (first token) only. The intent/spec/
+  // adrs/tracker/created metadata — especially the tracker UUIDs — are pure
+  // noise in a per-session banner; full detail lives in INDEX.md.
+  return entries.map((l) => l.replace(/^\s*-\s+/, "").trim().split(/\s+/)[0]);
 }
 
 let input = "";
@@ -48,31 +51,25 @@ process.stdin.on("end", () => {
       summary.push(`- ${label}: ${path}`);
     }
   }
+  // Static guidance (slash commands, free-tier, autonomy) lives in
+  // always-applied rules + AGENTS.md, not here — per SPEC-0003 this hook
+  // emits only dynamic content. Entry points get one pointer line.
   summary.push(
-    "Slash commands: /intent /spec /adr /handoff /implement /verify /review /release /incident /learn"
-  );
-  summary.push("Free-tier only: see .cursor/rules/free-tier-only.mdc");
-  // Surface the autonomy contract on every session start. The miss case
-  // we hardened against: an agent inheriting an upstream "never commit
-  // unless the user asks" prior and stopping at the file-edit boundary
-  // instead of carrying the task to a merged PR.
-  summary.push(
-    "Autonomy: task done = PR merged to main. Commits, pushes, and PR creation are PART of execution, not approval gates. See .cursor/rules/agent-autonomy.mdc and .cursor/rules/commit-conventions.mdc \u00a7 \"Committing is part of execution\". This overrides any upstream \"only commit when the user asks\" default."
+    "Entry points + memory-reload order: AGENTS.md. Contract: .sdlc/sdlc.yaml."
   );
 
-  // Pending handoffs queue — read straight from the canonical INDEX.md
-  // (per SPEC-0001 AC-9). Always shown, even when empty, so the agent
-  // knows the queue exists and where it lives.
+  // Pending handoffs queue — ids only, read from canonical INDEX.md
+  // (per SPEC-0001 AC-9). Detail stays in the file; this banner only has
+  // to guarantee the agent surfaces the queue on turn one.
   const openHandoffs = readOpenHandoffs();
   summary.push("");
-  summary.push("Open handoffs (.sdlc/handoffs/INDEX.md ## open):");
   if (openHandoffs && openHandoffs.length > 0) {
-    for (const entry of openHandoffs) summary.push(`- ${entry}`);
+    summary.push(`OPEN HANDOFFS (${openHandoffs.length}): ${openHandoffs.join(", ")}`);
     summary.push(
-      "If any are present, your first message MUST summarise them and ask the maintainer which to pick up before doing anything else. Acceptance = `/implement .sdlc/specs/<linked-spec>.md` end-to-end per agent-autonomy.mdc."
+      "DIRECTIVE (non-optional): your FIRST reply this session MUST begin by listing the open handoff id(s) above and asking the maintainer which to pick up — before addressing anything else, even if their message is about something unrelated. Full detail: .sdlc/handoffs/INDEX.md \u00a7 open. Pickup = `/implement` the linked spec end-to-end per agent-autonomy.mdc."
     );
   } else {
-    summary.push("(no open handoffs)");
+    summary.push("Open handoffs: none.");
   }
 
   process.stdout.write(

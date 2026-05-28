@@ -1,6 +1,6 @@
 ---
-description: Conventional Commits with SDLC + Plane references
-alwaysApply: true
+description: Apply when writing a git commit message or composing a commit — Conventional Commits format (type/scope/summary), SDLC + Plane refs, and the rule that committing is part of execution, not an approval gate.
+alwaysApply: false
 ---
 
 # Commit message conventions

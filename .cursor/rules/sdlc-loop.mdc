@@ -5,41 +5,16 @@ alwaysApply: true
 
 # AI-Native SDLC is the contract
 
-`.sdlc/sdlc.yaml` is the source of truth for how this project is built. Read it
-before planning any non-trivial change.
+`.sdlc/sdlc.yaml` is the source of truth; read it before any non-trivial
+change. Identify your `phase`, obey its `gates`, and stamp every `.sdlc/`
+artifact with `common_provenance`.
 
-## Always do
+`AGENTS.md` is the session entry point — it lists, in order, the memories
+to reload (`.sdlc/memories/*`) and the durable index (`.sdlc/INDEX.md`).
+Reload those before acting.
 
-- Identify which `phase` your work belongs to and obey that phase's `gates`.
-- Stamp every artifact you write with the `common_provenance` block (agent_id,
-  model, prompt_hash, trace_id, inputs_digest, created_at).
-- Before writing Next.js code, read the relevant page in
-  `node_modules/next/dist/docs/` (per `AGENTS.md`).
-- Cite the exact rule, gate, or doc path you followed in your final message.
+Slash commands map to phases: `/intent` `/spec` `/adr` `/handoff`
+`/implement` `/verify` `/review` `/release` `/incident` `/learn`
+(see `.cursor/commands/`).
 
-## Memories the agent must reload (every session, before acting)
-
-Read in this order. If you're about to touch the repo without having
-reloaded these, **stop and reload first** — that's the contract.
-
-1. `.sdlc/memories/project.md` — invariant facts about this app
-2. `.sdlc/memories/operational-context.md` — what's in flight *right now* (capped, not a log)
-3. `.sdlc/memories/architecture.md` — orientation + pointers to ADRs
-4. `.sdlc/memories/business-rules.md` — product rules for The Daily Brief
-5. `.sdlc/memories/glossary.md` — canonical terminology
-6. `.sdlc/memories/incidents.md` — open + recently resolved incidents
-7. `.sdlc/memories/lessons.md` — appended by the `learn` phase
-
-`operational-context.md` is updated on every PR open / merge. Keep it
-capped — older items move to `lessons.md` (or are dropped) per the
-update rules at the top of that file.
-
-## Slash commands map to phases
-
-`/intent`, `/spec`, `/adr`, `/implement`, `/verify`, `/review`, `/release`,
-`/incident`, `/learn` — see `.cursor/commands/`.
-
-## When in doubt
-
-Pause and ask the maintainer rather than violate a gate or ship without
-provenance. The DSL invariants are non-negotiable.
+When in doubt, pause rather than violate a gate or ship without provenance.

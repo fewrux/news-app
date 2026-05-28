@@ -1,6 +1,7 @@
 ---
 description: Trunk-based branch discipline — main is protected, all changes flow through a PR
-alwaysApply: true
+globs: .github/workflows/**
+alwaysApply: false
 ---
 
 # Branch discipline (non-negotiable)
