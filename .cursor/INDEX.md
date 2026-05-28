@@ -25,24 +25,28 @@ This folder is split into five concerns: **agents**, **commands**, **skills**,
 One card per agent in `sdlc.yaml.roles.agents`. Each declares phases owned,
 gates required, tools allowed, and how to invoke it.
 
-| Agent         | Owns phase   | Invoke with | Model class      |
-|---------------|--------------|-------------|------------------|
-| planner       | ideate, specify | `/intent`, `/spec` | reasoning_high   |
-| architect     | design       | `/adr`       | reasoning_high   |
-| implementer   | implement    | `/implement` | coding_fast      |
-| tester        | verify       | `/verify`    | coding_fast      |
-| reviewer      | review       | `/review`    | reasoning_high   |
-| releaser      | release      | `/release`   | reasoning_medium |
-| operator      | operate      | `/incident`  | reasoning_medium |
-| learner       | learn        | `/learn`     | reasoning_high   |
+| Agent         | Owns phase               | Invoke with               | Model class      |
+|---------------|--------------------------|---------------------------|------------------|
+| planner       | ideate, specify, handoff | `/intent`, `/spec`, `/handoff` | reasoning_high   |
+| architect     | design                   | `/adr`                    | reasoning_high   |
+| implementer   | implement                | `/implement`              | coding_fast      |
+| tester        | verify                   | `/verify`                 | coding_fast      |
+| reviewer      | review                   | `/review`                 | reasoning_high   |
+| releaser      | release                  | `/release`                | reasoning_medium |
+| operator      | operate                  | `/incident`               | reasoning_medium |
+| learner       | learn                    | `/learn`                  | reasoning_high   |
+| doctor        | — (meta-checker)         | `/doctor` (SPEC-0002)     | reasoning_high   |
 
 ## Commands — slash commands (`.cursor/commands/`)
 
 One per SDLC phase. The command file is the prompt; running it conscripts the
 right agent and enforces the phase's gates.
 
-`/intent`, `/spec`, `/adr`, `/implement`, `/verify`, `/review`, `/release`,
-`/incident`, `/learn`
+`/intent`, `/spec`, `/adr`, `/handoff`, `/implement`, `/verify`, `/review`,
+`/release`, `/incident`, `/learn`
+
+`/doctor` ships with SPEC-0002 (next session, dispatched via the handoff
+system from SPEC-0001's PR).
 
 ## Skills — auto-loaded knowledge (`.cursor/skills/`)
 
@@ -74,7 +78,7 @@ Loaded by Cursor when their description matches the task.
 
 | Event                  | Script                | Behavior |
 |------------------------|-----------------------|----------|
-| `sessionStart`         | `load-context.mjs`    | Inject SDLC summary + memory pointers |
+| `sessionStart`         | `load-context.mjs`    | Inject SDLC summary + memory pointers + `## open` section of `.sdlc/handoffs/INDEX.md` |
 | `beforeSubmitPrompt`   | `scan-secrets.mjs`    | Block prompts containing secrets (failClosed) |
 | `beforeShellExecution` | `guard-shell.mjs`     | Deny destructive commands, any push/commit that violates branch discipline; ask for side-effecty ones |
 | `afterFileEdit`        | `lint-touch.mjs`      | Append touched paths to `.sdlc/reports/touched.log` |

@@ -14,12 +14,20 @@
 >   (`SPEC-NNNN`, `INC-NNNN`, PR #, `.sdlc/...` path). Do **not** inline
 >   the detail here.
 
-last_updated: 2026-05-25
+last_updated: 2026-05-28
 updated_by: implementer
 
 ## In progress (max 5)
 
-- _none_
+- **Handoff system + doctor design (dogfood doctor via /handoff)** — PR #7
+  (`feat/handoff-system`). Ships the cross-session handoff system end-to-end
+  (artifact type, INDEX.md queue, `/handoff` command, doctor identity card,
+  load-context hook extension, vendor-agnostic tracker adapter contract);
+  pre-writes the doctor's INT-0003 + ADR-0003 + SPEC-0002 so the PR's final
+  commit dogfoods `/handoff` to dispatch the doctor implementation to the
+  next session. Also fixes the long-flagged `integrations.plane.mappings`
+  pseudo-YAML in passing (it had to validate to host the new handoff
+  mapping). Refs: SPEC-0001, SPEC-0002, ADR-0002, ADR-0003.
 
 ## Recently completed (max 5, last 14 days)
 
@@ -41,14 +49,16 @@ updated_by: implementer
 
 ## Next up (max 3)
 
+- **Implement SPEC-0002 (SDLC doctor)** via the handoff dispatched in PR #7:
+  ` scripts/sdlc-doctor.mjs` mechanical layer, `.cursor/commands/doctor.md`,
+  `.cursor/skills/sdlc-doctor/SKILL.md`, `.github/workflows/doctor.yml`
+  (advisory), and the agentic layer in `.cursor/agents/doctor.md`'s
+  behavior block. See HANDOFF-2026-05-28-sdlc-doctor for context.
 - Kick `.github/workflows/docs-sync.yml` via `workflow_dispatch` to land
   the remaining 5 Plane pages (observability, provenance, sdlc-overview,
   slash-commands, testing) from a GitHub runner IP (fresh Cloudflare state).
 - Clean up Plane workspace via the UI: delete ~9 zombie + 3 probe pages
   by filtering `external_source = news-app-docs-probe`.
-- Ship `fix/sdlc-yaml-plane-mappings`: the `artifact.intent -> plane.issue`
-  pseudo-arrow notation in `sdlc.yaml` lines ~619-628 is not valid YAML;
-  convert to a proper list-of-mappings.
 
 ## Blocked / waiting (max 3)
 
