@@ -1,6 +1,7 @@
 ---
 description: Every SDLC artifact must carry provenance fields
-alwaysApply: true
+globs: .sdlc/**/*.md
+alwaysApply: false
 ---
 
 # Provenance is mandatory

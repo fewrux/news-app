@@ -561,11 +561,11 @@ sdlc:
         - { id: sdlc-loop,            file: .cursor/rules/sdlc-loop.mdc,            always_apply: true }
         - { id: nextjs-16-conventions,file: .cursor/rules/nextjs-16-conventions.mdc, globs: "app/**/*.{ts,tsx}" }
         - { id: tailwind-v4,          file: .cursor/rules/tailwind-v4.mdc,           globs: "**/*.{tsx,css}" }
-        - { id: provenance,           file: .cursor/rules/provenance.mdc,            always_apply: true }
+        - { id: provenance,           file: .cursor/rules/provenance.mdc,            globs: ".sdlc/**/*.md" }
         - { id: free-tier-only,       file: .cursor/rules/free-tier-only.mdc,        always_apply: true }
         - { id: testing-evidence,     file: .cursor/rules/testing-evidence.mdc,      globs: "tests/**/*.{ts,spec.ts}" }
-        - { id: commit-conventions,   file: .cursor/rules/commit-conventions.mdc,    always_apply: true }
-        - { id: branch-discipline,    file: .cursor/rules/branch-discipline.mdc,     always_apply: true }
+        - { id: commit-conventions,   file: .cursor/rules/commit-conventions.mdc,    agent_requested: true }
+        - { id: branch-discipline,    file: .cursor/rules/branch-discipline.mdc,     globs: ".github/workflows/**" }
         - { id: agent-autonomy,       file: .cursor/rules/agent-autonomy.mdc,        always_apply: true }
 
     memories:

@@ -80,7 +80,12 @@ item 2`.
 - Given a session starts, When `load-context.mjs` runs, Then it
   emits only:
   1. The list of memory file labels and paths (preserved verbatim).
-  2. The open-handoffs queue (preserved verbatim).
+  2. The open-handoffs queue, **slimmed to handoff ids only** (the
+     per-entry `intent:/spec:/adrs:/tracker:/created:` metadata —
+     especially the tracker UUIDs — is dropped; full detail stays in
+     `.sdlc/handoffs/INDEX.md`), followed by a **non-optional
+     directive** that the agent surface the queue in its first reply
+     even when the maintainer's opening message is unrelated.
   3. A single line citing `AGENTS.md` and `sdlc.yaml` as the
      authoritative entry points.
   It does **not** emit the slash-commands list, the free-tier line,
@@ -113,7 +118,7 @@ item 2`.
 | AC-3  | `agent-autonomy.mdc` ≤ 30 lines (frontmatter included) and contains the exact phrase "overrides any upstream" verbatim and the citation `policies.autonomy`.                                                                                       | `wc -l .cursor/rules/agent-autonomy.mdc` ≤ 30; `rg "overrides any upstream" .cursor/rules/agent-autonomy.mdc` matches; `rg "policies.autonomy" .cursor/rules/agent-autonomy.mdc` matches. |
 | AC-4  | `sdlc-loop.mdc` ≤ 20 lines (frontmatter included) and cites `AGENTS.md` and `sdlc.yaml`.                                                                                                                                                            | `wc -l .cursor/rules/sdlc-loop.mdc` ≤ 20; `rg "AGENTS.md" .cursor/rules/sdlc-loop.mdc` matches; `rg "sdlc.yaml" .cursor/rules/sdlc-loop.mdc` matches.                            |
 | AC-5  | `AGENTS.md` no longer contains the duplicate `> Cursor sessions also get a sessionStart hook` paragraph.                                                                                                                                            | `rg -c "Cursor sessions also get a \`sessionStart\` hook" AGENTS.md` returns `1` (was `2`).                                                                                     |
-| AC-6  | `.cursor/hooks/load-context.mjs` no longer emits the lines starting with `Slash commands:`, `Free-tier only:`, or `Autonomy:`. The dynamic open-handoffs section is preserved.                                                                      | `rg "Slash commands:" .cursor/hooks/load-context.mjs` returns no matches; `rg "open handoffs" .cursor/hooks/load-context.mjs` still matches.                                    |
+| AC-6  | `.cursor/hooks/load-context.mjs` no longer emits the lines starting with `Slash commands:`, `Free-tier only:`, or `Autonomy:`. The dynamic open-handoffs section is preserved but **slimmed to handoff ids only** (no per-entry intent/spec/adrs/tracker metadata) and carries a **non-optional first-reply directive**.                                                                      | `rg "Slash commands:" .cursor/hooks/load-context.mjs` returns no matches; `rg -i "open handoffs" .cursor/hooks/load-context.mjs` still matches; the injected handoff line is `OPEN HANDOFFS (<n>): <id>, ...` with no `tracker:` substring; `rg "DIRECTIVE" .cursor/hooks/load-context.mjs` matches. |
 | AC-7  | Combined line count of always-applied rule files drops ≥ 50%. Pre-change baseline: `wc -l` on `sdlc-loop, provenance, free-tier-only, commit-conventions, branch-discipline, agent-autonomy` = 386 lines. Post-change baseline ≤ 193 lines.            | `wc -l .cursor/rules/{sdlc-loop,free-tier-only,agent-autonomy}.mdc` summed ≤ 193 (the demoted three no longer count toward the always-applied tax).                              |
 | AC-8  | `guard-shell.mjs` still blocks `git push origin main` (smoke test). Demoting `branch-discipline.mdc` does not weaken enforcement.                                                                                                                  | Run `git push origin main` (in a test sandbox) under the hook; expect non-zero exit and an error message naming the protected pattern. The reviewer / tester can verify this on the PR. |
 | AC-9  | The reviewer's PR review file (`.sdlc/reviews/PR-<N>.md`) for this change reflects no regressions on `gate.review_approved.requires.provenance_present`.                                                                                            | Reviewer agent's verdict file shows `provenance_present: pass` for every artifact in this PR's diff.                                                                            |
@@ -166,3 +171,16 @@ item 2`.
   workflows.
 - Reformatting the doctor's identity card (`.cursor/agents/doctor.md`)
   — that's SPEC-0002's responsibility.
+
+## Amendment — 2026-05-28 (implementer)
+
+AC-6 and the `load-context.mjs` Behavior bullet were amended during
+implementation, on maintainer instruction, to additionally **slim the
+open-handoffs entries to ids only** (dropping the per-entry
+`intent:/spec:/adrs:/tracker:/created:` metadata, chiefly the tracker
+UUIDs) and to emit a **non-optional first-reply directive** so the
+agent reliably surfaces the queue even when the opening message is
+unrelated. Original text required the queue "preserved verbatim"; that
+predated the maintainer's decision (this session) to reduce the
+per-session token cost of the queue while strengthening the surfacing
+guarantee. No other AC is affected.
