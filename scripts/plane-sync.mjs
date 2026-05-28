@@ -331,19 +331,10 @@ async function rewriteTrackerBlock(path, { provider, epic, issues, url }) {
   await writeFile(path, md);
 }
 
-// Append (or upsert) a status field at the top of frontmatter when an
-// adapter waives the tracker mirror (env not set). The handoff still
-// commits cleanly; the maintainer can re-run create-from-handoff later
-// to populate `tracker:`.
-async function noteTrackerWaiver(path, reason) {
-  const md = await readFile(path, "utf8");
-  if (/^tracker_mirrored:\s*/m.test(md)) return; // already noted
-  const updated = md.replace(
-    /^(---\n[\s\S]*?)(\n---)/,
-    `$1\ntracker_mirrored: waived  # ${reason}$2`,
-  );
-  await writeFile(path, updated);
-}
+// Soft-fail waiver (env unset) is handled by the /handoff slash command,
+// not here — the agent owns the frontmatter waiver note + the human
+// summary. This script's contract on env-missing is a clean `exit(2)`
+// so the caller can branch.
 
 async function createModule({ name, description }) {
   return planeFetch(`/modules/`, {
@@ -381,7 +372,10 @@ async function createFromHandoff(path) {
   const meta = parseHandoffMeta(md);
   const title = firstHeading(body);
 
-  const module = await createModule({
+  // `module` is a reserved name in CommonJS land and ESLint's Next.js
+  // preset rejects it as a variable name; use `epic` (the
+  // adapter-contract term in sdlc.yaml.integrations.tracker).
+  const epic = await createModule({
     name: `[Handoff] ${title}`,
     description: body.slice(0, 4000),
   });
@@ -412,16 +406,16 @@ async function createFromHandoff(path) {
     issueIds.push(issue.id);
   }
 
-  await attachIssuesToModule(module.id, issueIds);
+  await attachIssuesToModule(epic.id, issueIds);
 
   await rewriteTrackerBlock(path, {
     provider: "plane",
-    epic: module.id,
+    epic: epic.id,
     issues: issueIds,
   });
 
   console.log(
-    `plane-sync: created handoff module ${module.id} with ${issueIds.length} child issue(s)`,
+    `plane-sync: created handoff module ${epic.id} with ${issueIds.length} child issue(s)`,
   );
 }
 
