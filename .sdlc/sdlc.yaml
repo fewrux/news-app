@@ -102,6 +102,22 @@ sdlc:
         tools: [telemetry_read, repo_read, repo_write]
         writes: [artifact.rule_update, artifact.eval_case]
 
+      - id: doctor
+        # SDLC drift detector. Mechanical layer is no-LLM; semantic layer
+        # uses reasoning_high on demand or weekly. Read-only except for
+        # the single --refresh-baseline operation, which is itself a PR.
+        # See ADR-0003 for the three interlocking decisions (baseline
+        # scope, autonomy boundary, ci/doctor cadence) and SPEC-0002 for
+        # the executable plan.
+        purpose: Detect drift between the SDLC contract + operator surface and reality.
+        model_class: reasoning_high
+        tools: [repo_read, shell]
+        writes: [artifact.review]              # .sdlc/reviews/doctor-<YYYY-MM-DD>.md
+        constraints:
+          - must_be_distinct_from: implementer
+          - must_be_distinct_from: reviewer
+          - read_only_except: [.sdlc/baseline.yaml]
+
   # ---------------------------------------------------------------------------
   # MODEL POLICY — abstract classes, bound to concrete models per environment
   # ---------------------------------------------------------------------------
@@ -167,6 +183,20 @@ sdlc:
       outputs: [artifact.adr, artifact.contract]
       gates:   [gate.adr_alternatives_considered]
       skip_when: "spec.complexity == trivial"
+
+    - id: handoff
+      # Optional cross-session bridge. Invoked when the session producing
+      # the spec is NOT the session implementing it. Bundles a session's
+      # intent + spec + ADR(s) into a handoff cover sheet and mirrors it
+      # to the active tracker. Not in workflows.*.steps; reachable via
+      # /handoff. See SPEC-0001 and ADR-0002.
+      owner: planner
+      assists: [architect]
+      inputs:  [artifact.intent, artifact.spec]   # artifact.adr is optional
+      outputs: [artifact.handoff]
+      gates:   [gate.handoff_bundle_complete, gate.tracker_mirrored]
+      optional: true
+      exit_when: "handoff appears in .sdlc/handoffs/INDEX.md ## open AND tracker mirror recorded OR explicit waiver committed"
 
     - id: implement
       owner: implementer
@@ -278,6 +308,17 @@ sdlc:
       review:
         location: .sdlc/reviews/{pr_id}.md
         schema: { findings, severity, blockers, approvals }
+        notes: |
+          The doctor agent also writes here, with filename pattern
+          doctor-{YYYY-MM-DD}.md (SDLC drift report; not a PR review).
+      handoff:
+        # Cross-session work bridge produced by /handoff. See SPEC-0001.
+        # Status transitions: open -> in_progress -> merged (or cancelled).
+        # Indexed by .sdlc/handoffs/INDEX.md; the session-start hook
+        # surfaces that index's ## open section to every new session.
+        location: .sdlc/handoffs/HANDOFF-{date}-{slug}.md
+        schema: { context, links: { intent, spec, adrs }, tracker, status }
+        provenance: *provenance
       release_note:
         location: .sdlc/releases/{version}.md
       incident:
@@ -309,6 +350,15 @@ sdlc:
     adr_alternatives_considered:
       asserts: "ADR lists >= 2 alternatives with trade-offs"
       runner: agent.reviewer
+
+    handoff_bundle_complete:
+      asserts: "handoff frontmatter resolves intent, spec, and any referenced ADR(s) to existing files"
+      runner: agent.planner
+
+    tracker_mirrored:
+      asserts: "handoff.tracker.epic and tracker.issues are populated OR a soft-fail note is committed"
+      runner: shell
+      tolerate_missing: true   # PLANE_* env may be absent in local dev; /handoff falls back gracefully
 
     lint:        { runner: shell, command: "npm run lint" }
     typecheck:   { runner: shell, command: "npx tsc --noEmit" }
@@ -476,6 +526,7 @@ sdlc:
         - { id: /intent,    file: .cursor/commands/intent.md,    phase: ideate }
         - { id: /spec,      file: .cursor/commands/spec.md,      phase: specify }
         - { id: /adr,       file: .cursor/commands/adr.md,       phase: design }
+        - { id: /handoff,   file: .cursor/commands/handoff.md,   phase: handoff }
         - { id: /implement, file: .cursor/commands/implement.md, phase: implement }
         - { id: /verify,    file: .cursor/commands/verify.md,    phase: verify }
         - { id: /review,    file: .cursor/commands/review.md,    phase: review }
@@ -532,7 +583,7 @@ sdlc:
       # phases owned, gates required, tools allowed, and invocation entry.
       location: .cursor/agents/
       registry:
-        - { id: planner,     file: .cursor/agents/planner.md,     owns: [ideate, specify] }
+        - { id: planner,     file: .cursor/agents/planner.md,     owns: [ideate, specify, handoff] }
         - { id: architect,   file: .cursor/agents/architect.md,   owns: [design] }
         - { id: implementer, file: .cursor/agents/implementer.md, owns: [implement] }
         - { id: tester,      file: .cursor/agents/tester.md,      owns: [verify] }
@@ -540,6 +591,7 @@ sdlc:
         - { id: releaser,    file: .cursor/agents/releaser.md,    owns: [release] }
         - { id: operator,    file: .cursor/agents/operator.md,    owns: [operate] }
         - { id: learner,     file: .cursor/agents/learner.md,     owns: [learn] }
+        - { id: doctor,      file: .cursor/agents/doctor.md,      owns: [] }   # meta-checker; no phase ownership
 
   # ---------------------------------------------------------------------------
   # INTEGRATIONS — external services the lifecycle is wired to
@@ -578,12 +630,57 @@ sdlc:
       project: ${env:PLANE_PROJECT_ID}
       auth: { kind: bearer, env: PLANE_API_TOKEN }
       mappings:
-        artifact.intent  -> plane.issue       { state: backlog,    labels: [intent] }
-        artifact.spec    -> plane.issue       { state: todo,       labels: [spec] }
-        artifact.incident-> plane.issue       { state: in_progress, labels: [incident, p1] }
-        phase.release    -> plane.cycle       { auto_close: true }
+        # Converted from a pseudo-arrow notation that was not valid YAML
+        # (flagged in operational-context.md). Now a proper list of
+        # mapping objects so the file parses and the doctor can lint it.
+        - { from: artifact.intent,   to: plane.issue,  state: backlog,      labels: [intent] }
+        - { from: artifact.spec,     to: plane.issue,  state: todo,         labels: [spec] }
+        - { from: artifact.incident, to: plane.issue,  state: in_progress,  labels: [incident, p1] }
+        - { from: artifact.handoff,  to: plane.module, children: plane.issue, labels: [handoff] }
+        - { from: phase.release,     to: plane.cycle,  auto_close: true }
       sync_script: scripts/plane-sync.mjs
-      maps_to_phases: [ideate, specify, operate, release]
+      maps_to_phases: [ideate, specify, handoff, operate, release]
+
+    tracker:
+      # Vendor-agnostic project-management abstraction per ADR-0002. SDLC
+      # artifacts and slash commands speak through this contract; the
+      # active_provider's adapter script implements the verbs below.
+      # Swapping provider = one line here + a sibling
+      # scripts/<provider>-sync.mjs honouring the subcommand contract.
+      # Plane stays as the only adapter today; Jira / Linear / GitHub
+      # Projects would be additive without changing any artifact shape.
+      role: project_management_abstraction
+      active_provider: plane
+      providers:
+        plane:
+          config_ref: integrations.plane           # provider-native config above
+          sync_script: scripts/plane-sync.mjs
+          epic_object: module                       # provider-native term for "epic"
+          issue_object: issue
+          free_tier_quota_ref: policies.cost.free_quotas.plane
+      adapter_contract:
+        # Every adapter MUST expose these subcommands with the documented
+        # arity. The doctor enforces conformance
+        # (struct.tracker-adapter-contract-conformance).
+        subcommands:
+          - { name: create-from-intent,   args: "<path-to-intent.md>",   writes: "tracker.issues[0] back to frontmatter" }
+          - { name: create-from-incident, args: "<path-to-incident.md>", writes: "tracker.issues[0] back to frontmatter" }
+          - { name: create-from-handoff,  args: "<path-to-handoff.md>",  writes: "tracker.epic + tracker.issues back to frontmatter" }
+          - { name: link-spec,            args: "<path-to-spec.md> <issue-id>", writes: "tracker.issues[0] back to frontmatter" }
+          - { name: close-cycle,          args: "<cycle-id>",            writes: "(none)" }
+          - { name: github-event,         args: "(reads $GITHUB_EVENT_PATH)", writes: "(none)" }
+        artifact_frontmatter:
+          # Canonical artifact-side shape. Replaces provider-specific
+          # fields (e.g. plane_issue:) per ADR-0002. Legacy plane_issue:
+          # is accepted during the soft-deprecation window; the doctor
+          # flags it warn (artifact.legacy-plane-issue).
+          example: |
+            tracker:
+              provider: plane          # mirrors active_provider
+              epic: NEWS-42            # provider-native id; only for artifact.handoff
+              issues: [NEWS-43, NEWS-44]
+              url: ""                  # provider-native deep link; optional
+      maps_to_phases: [ideate, specify, handoff, operate, release]
 
     vercel:
       role: deployment

@@ -252,11 +252,14 @@ the eventual contract.
    (HANDOFF-2026-05-28-sdlc-doctor).
 2. **First-run findings backlog.** Once SPEC-0002 ships and runs, expect
    `fail` findings for at least: `sdlc.yaml.instructions.hooks.registry`
-   pointing at `.sh` while `hooks.json` runs `.mjs`; the pseudo-YAML
-   arrow notation in `integrations.plane.mappings`; the legacy
+   pointing at `.sh` while `hooks.json` runs `.mjs`; the legacy
    `plane_issue:` field on INT-0001 (per ADR-0002's soft deprecation).
    Each is its own cleanup intent; the doctor's first weekly report
-   files them.
+   files them. The pre-existing `integrations.plane.mappings` pseudo-YAML
+   issue (flagged in `operational-context.md`) was fixed in the same PR
+   as this ADR, because the YAML had to validate before the new
+   `handoff` mapping could be added — so it does not appear in the
+   first-run backlog.
 3. **Promotion ADR.** Two weeks after the doctor's first clean
    `ci/doctor` run on `main`, write the ADR that supersedes
    "Decision 3 — Option 3C" with "required check on `main`". The
