@@ -1,7 +1,7 @@
 ---
 id: HANDOFF-2026-05-28-sdlc-doctor
 slug: sdlc-doctor
-status: in_progress
+status: merged
 created_at: 2026-05-28T16:45:00Z
 intent: INT-0003
 spec: SPEC-0002
