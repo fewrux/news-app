@@ -173,7 +173,7 @@ sdlc:
       owner: planner
       inputs:  [artifact.intent]
       outputs: [artifact.spec, artifact.acceptance_criteria]
-      gates:   [gate.spec_testable, gate.spec_scoped, gate.spec_tracker_mirrored]
+      gates:   [gate.spec_testable, gate.spec_scoped, gate.spec_single_lane, gate.spec_tracker_mirrored]
       human_required: false
       review_by: [maintainer]    # async review, non-blocking unless gate fails
 
@@ -204,6 +204,8 @@ sdlc:
         - gate.acceptance_criteria_met
         - gate.a11y_baseline
         - gate.visual_no_unintended_diff
+        - gate.browser_evidence_on_plane
+        - gate.no_cross_lane_diff
       retry_policy: { max_attempts: 3, escalate_model_on_retry: true }
 
     - id: review
@@ -325,6 +327,23 @@ sdlc:
     spec_scoped:
       asserts: "spec touches < 10 files OR is split into sub-specs"
       runner: static_check
+
+    spec_single_lane:
+      asserts: "spec surface (product|operator) matches all affected_paths — no cross-lane spec"
+      runner: static_check
+
+    no_cross_lane_diff:
+      asserts: "PR diff touches at most one of product_paths or operator_paths"
+      runner: shell
+      command: "node scripts/classify-diff.mjs --strict"
+
+    browser_evidence_on_plane:
+      runner: shell
+      command: "node scripts/check-verify-report.mjs"
+      notes: |
+        Product-surface specs: report.json records browser_evidence.status posted
+        with plane_comment_url after plane-sync post-evidence. Operator-surface:
+        status waived with reason.
 
     adr_alternatives_considered:
       asserts: "ADR lists >= 2 alternatives with trade-offs"
@@ -586,7 +605,7 @@ sdlc:
           # .sdlc/reviews/PR-<N>.md and replaces GitHub's require_review_approved,
           # which mis-fires on solo-maintainer setups where implementer and
           # reviewer agent runs share one GitHub user identity.
-          require_status_checks: [ci/lint, ci/typecheck, ci/build, ci/e2e, ci/review-gate]
+          require_status_checks: [ci/lint, ci/typecheck, ci/build, ci/review-gate]
           require_review_approved: false        # superseded by ci/review-gate per ADR-0001
           disallow_force_push_to_main: true
       actions:
@@ -596,7 +615,6 @@ sdlc:
           - { id: preview,      file: .github/workflows/preview.yml,       triggers: [pull_request] }
           - { id: deploy_prod,  file: .github/workflows/deploy-prod.yml,   triggers: [push.main] }
           - { id: plane_sync,   file: .github/workflows/plane-sync.yml,    triggers: [pull_request, issues] }
-          - { id: e2e_evidence, file: .github/workflows/e2e-evidence.yml,  triggers: [pull_request] }
           - { id: doctor,       file: .github/workflows/doctor.yml,        triggers: [pull_request], check_name: ci/doctor, advisory: true }
           - { id: doctor_weekly,file: .github/workflows/doctor-weekly.yml, triggers: [schedule.weekly] }
       maps_to_phases: [implement, verify, review, release]
@@ -647,6 +665,7 @@ sdlc:
           - { name: link-spec,            args: "<path-to-spec.md> <issue-id>", writes: "tracker.issues[0] back to frontmatter" }
           - { name: close-cycle,          args: "<cycle-id>",            writes: "(none)" }
           - { name: github-event,         args: "(reads $GITHUB_EVENT_PATH)", writes: "(none)" }
+          - { name: post-evidence,        args: "<path-to-spec.md> <report-dir> [--head-sha SHA]", writes: "plane issue comment + report.json browser_evidence block" }
         artifact_frontmatter:
           # Canonical artifact-side shape. Replaces provider-specific
           # fields (e.g. plane_issue:) per ADR-0002. Legacy plane_issue:
@@ -700,21 +719,29 @@ sdlc:
     browser_evidence:
       role: automated_testing + video_evidence
       runner: playwright
+      runner_location: cursor_verify          # NOT CI — see ADR-0006
       browsers: [chromium, firefox, webkit]
       config_file: playwright.config.ts
       tests_dir: tests/e2e/
+      classify_script: scripts/classify-diff.mjs
+      post_script: scripts/plane-sync.mjs post-evidence
+      lanes:
+        product_paths: [app/**, lib/**, components/**, public/**, tests/e2e/**]
+        operator_paths: [.sdlc/**, .cursor/**, docs/**, .github/**, scripts/**]
+        rule: "One spec and one PR per lane; cross-lane diffs blocked (gate.no_cross_lane_diff)."
       video:
-        record: on_first_retry                  # save bandwidth on the free tier
+        record: on_first_retry
         keep: failures_only_plus_one_smoke_per_pr
         artifact_path: .sdlc/reports/{run_id}/videos/
+        durable_store: plane_issue_comment     # system of record
       trace:
         record: on_first_retry
         artifact_path: .sdlc/reports/{run_id}/traces/
-      ci_workflow: .github/workflows/e2e-evidence.yml
       maps_to_phases: [verify, review]
       attaches_to:
         - artifact.report
         - phase.review.inputs
+        - integrations.plane.issue_comments
 
   # ---------------------------------------------------------------------------
   # LIFECYCLE INVARIANTS — the contract this DSL guarantees
@@ -726,7 +753,8 @@ sdlc:
     - "Every incident produces an eval_case before being closed."
     - "AGENTS.md rules supersede agent priors when they conflict."
     - "No integration may require a paid plan; free-tier breach pauses the work."
-    - "Every PR carries a Plane issue link, a Vercel preview URL, and an e2e video reference."
+    - "Every PR carries a Plane issue link. Product-surface PRs carry browser evidence on that Plane issue (posted during /verify before the draft PR opens). Operator-surface PRs record an explicit waiver in the reviewer artifact."
+    - "One PR per lane: product-surface and operator-surface changes never ship in the same PR (gate.no_cross_lane_diff)."
     - "main is protected; changes land via approved PR only; no bypass for any actor."
     - "Approved tasks execute end-to-end; agents do not re-prompt for sub-step approval."
     - "Releases are agent-driven by default; humans approve only when phase.release.human_required_when triggers."

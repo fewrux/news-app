@@ -10,67 +10,46 @@ This project is **trunk-based**. `main` is the only long-lived branch and it is
 **protected**. The contract is declared in
 `.sdlc/sdlc.yaml.integrations.github.branch_strategy.protection`:
 
-- `require_status_checks: [ci/lint, ci/typecheck, ci/build, ci/e2e, ci/review-gate]`
+- `require_status_checks: [ci/lint, ci/typecheck, ci/build, ci/review-gate]`
 - `require_review_approved: false` (superseded by `ci/review-gate` per ADR-0001)
 - `disallow_force_push_to_main: true`
 
 `gate.review_approved` is enforced via the **SDLC artifact**, not via GitHub's
-native review event. The `ci/review-gate` job in `.github/workflows/ci.yml`
-reads `.sdlc/reviews/PR-<N>.md` and asserts:
+native review event. The `ci/review-gate` job reads `.sdlc/reviews/PR-<N>.md`.
 
-- `verdict: approved` in the frontmatter
-- `provenance.agent_id: reviewer`
-- `implementer_distinct_from_reviewer: true`
-- `pr_id` matches the PR number
+## Single-lane PRs (ADR-0006)
 
-The reviewer agent must commit `.sdlc/reviews/PR-<N>.md` to the PR branch
-before the merge gate is satisfied. See ADR-0001 for why platform-level
-`require_review_approved` was replaced.
+One PR = one lane = one spec. **Never** mix product and operator paths:
 
-That contract is binding on **every actor — human or agent**. There is no
-bypass list. The maintainer does not push directly; the agents do not push
-directly. Everything goes through a PR.
+| Lane | Paths (summary) |
+|------|-----------------|
+| **Product** | `app/`, `lib/`, `components/`, `public/`, product e2e |
+| **Operator** | `.sdlc/`, `.cursor/`, `docs/`, `.github/`, `scripts/` |
+
+Run `node scripts/classify-diff.mjs --strict` before opening a PR. Cross-lane
+diffs are blockers — split into separate PRs.
 
 ## Hard rules
 
-1. **Never `git push` to `main`.** Not `git push origin main`, not
-   `git push -u origin main`, not `git push --force ... main`. The
-   `beforeShellExecution` hook (`.cursor/hooks/guard-shell.mjs`) blocks these
-   patterns; do not try to work around it.
-2. **All work happens on a short-lived branch.** Naming convention:
-   - `feat/<spec-slug>` for new features
-   - `fix/<spec-slug>` for bug fixes
-   - `chore/<slug>` for refactors, deps, docs
-   - `hotfix/<incident-id>` for production hotfixes
-3. **Open the PR first, push commits second.** Use `gh pr create --draft` as
-   the first push from a new branch. The PR is the conversation surface for the
-   reviewer agent and the place where preview deploy / e2e evidence / Plane
-   link converge.
-4. **No history rewrites on `main`.** No `--amend`, no `rebase -i`, no
-   `push --force` against `main` or any branch that has been the source of a
-   merged PR. Rewrites are allowed only on a feature branch you own and have
-   not yet been reviewed.
-5. **Promotion to `main` is by squash-merge of an approved PR.** The
-   `release` phase deploys whatever lands on `main`; there is no separate
-   "promote" step today. If two-trunk (`develop` → `main`) is ever needed, it
-   is added via an ADR — not by convention drift.
+1. **Never `git push` to `main`.**
+2. **All work on a short-lived branch:** `feat/*` / `fix/*` (product) or
+   `chore/*` (operator).
+3. **`/verify` before the draft PR** — especially product surface (Playwright +
+   Plane evidence). Do not open a product PR untested.
+4. **No history rewrites on `main`.**
+5. **Squash-merge only** after approved review artifact lands.
 
-## Required PR shape (per `.sdlc/sdlc.yaml.invariants`)
+## Required PR shape
 
 Every PR carries:
 
-- A Plane issue link (via `scripts/plane-sync.mjs`)
-- A Vercel preview URL (auto-posted by `.github/workflows/preview.yml`)
-- An e2e video reference (per `.cursor/skills/browser-evidence/SKILL.md`)
-- A review approval from the **reviewer agent** identity, which must be
-  distinct from the implementer (`reviewer.constraints.must_be_distinct_from:
-  implementer`).
-
-A PR missing any of those is not mergeable. The reviewer agent rejects on
-sight.
+- A **Plane issue** link (via `scripts/plane-sync.mjs`)
+- A **Vercel preview URL** (auto-posted for PRs; N/A for some operator-only work)
+- **Browser evidence:** Plane comment URL (product) or explicit waiver in the
+  reviewer artifact (operator)
+- **Reviewer approval** (distinct from implementer)
 
 ## When in doubt
 
-Open a draft PR and stop. Ask the maintainer in the PR description rather than
-pushing to `main` to "fix it quickly". The fastest path through this project
-is the protected one.
+Open a draft PR only after `/verify` passes. Ask in the PR description rather
+than pushing to `main`.

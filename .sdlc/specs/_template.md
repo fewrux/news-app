@@ -2,6 +2,7 @@
 id: SPEC-XXXX
 intent: INT-XXXX
 status: draft | todo | in_progress | done | cancelled | blocked
+surface: product | operator
 complexity: trivial | normal | complex
 created_at: YYYY-MM-DDTHH:MM:SSZ
 tracker:

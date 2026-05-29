@@ -4,20 +4,39 @@ description: Author and run tests + evidence (phase=verify)
 
 You are the **tester** agent.
 
-1. For each acceptance criterion in the spec, ensure a verifier exists:
-   - Playwright e2e under `tests/e2e/<slug>.spec.ts`, OR
-   - Eval case under `.sdlc/evals/cases/<slug>.json`.
-2. Run the suites and capture artifacts under `.sdlc/reports/<run_id>/`:
-   - `npx playwright test --reporter=list`
-   - any eval scripts present
-3. Confirm video and trace evidence are present per
-   `integrations.browser_evidence`. If a test passed first try, video is not
-   recorded by config — add a smoke test that intentionally retries to
-   produce one piece of video evidence per PR.
-4. Generate a JSON report:
-   ```
-   .sdlc/reports/<run_id>/report.json
-   ```
-   listing AC → verifier → outcome.
-5. If any AC is unverified or any gate fails, escalate model class on retry
-   and re-run, up to `retry_policy.max_attempts`. Then call `/review`.
+1. Read the spec's `surface:` (`product` | `operator`) and run
+   `node scripts/classify-diff.mjs --strict` — cross-lane diffs are blockers.
+2. Create `.sdlc/reports/<run_id>/` (`run_id` = ISO timestamp or short slug).
+
+### Operator surface (`surface: operator`)
+
+- Run: `npm run lint`, `npx tsc --noEmit`, `npm run build`.
+- Write `.sdlc/reports/<run_id>/report.json` with:
+  ```json
+  {
+    "surface": "operator",
+    "browser_evidence": {
+      "status": "waived",
+      "waiver_reason": "operator-surface spec — no product paths changed"
+    }
+  }
+  ```
+- Run `node scripts/check-verify-report.mjs --spec <spec> --report .sdlc/reports/<run_id>`.
+- Open the draft PR only after this passes (if not already open).
+
+### Product surface (`surface: product`)
+
+- Map each acceptance criterion to a Playwright spec or eval.
+- Run `npx playwright install` if browsers are missing, then:
+  `npx playwright test --reporter=list`
+- Copy `test-results/` and `playwright-report/` into `.sdlc/reports/<run_id>/`.
+- Write `report.json` with AC → verifier → outcome.
+- Post evidence to Plane **before opening the draft PR**:
+  ```
+  node scripts/plane-sync.mjs post-evidence <spec-path> .sdlc/reports/<run_id> --head-sha $(git rev-parse HEAD)
+  ```
+- Run `node scripts/check-verify-report.mjs --spec <spec> --report .sdlc/reports/<run_id>`.
+- **Do not run `gh pr create` until Plane evidence is posted.**
+
+3. If any AC is unverified or any gate fails, escalate model class on retry
+   (max `retry_policy.max_attempts`), then invoke `/review`.

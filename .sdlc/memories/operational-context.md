@@ -15,4 +15,3 @@ updated_by: releaser
 ## in_progress (max 10)
 
 - _none_
-

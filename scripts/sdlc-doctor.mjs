@@ -482,9 +482,6 @@ async function runChecks(ctx) {
       : basename(wf.file, ".yml");
     for (const m of wfText.matchAll(/^  ([a-zA-Z][\w-]*):\s*$/gm)) {
       declaredJobs.add(`${wfName}/${m[1]}`);
-      if (wf.id === "e2e_evidence" && m[1] === "e2e") {
-        declaredJobs.add("ci/e2e");
-      }
     }
   }
 
@@ -755,17 +752,45 @@ async function runChecks(ctx) {
       for (const pr of list) {
         const blob = `${pr.body ?? ""}\n${(pr.comments ?? []).map((c) => c.body).join("\n")}`;
         const hasPlane = /plane[:/]|plane\.so/i.test(blob);
-        const hasVercel = /vercel\.app/i.test(blob);
-        const hasE2e = /e2e|playwright|\.sdlc\/reports/i.test(blob);
-        if (!hasPlane || !hasVercel || !hasE2e) {
+        if (!hasPlane) {
           findings.push(
             finding(
               "process.recent-pr-shape",
               "warn",
               "process compliance",
-              `Merged PR #${pr.number} missing required shape (plane=${hasPlane}, vercel=${hasVercel}, e2e=${hasE2e})`,
+              `Merged PR #${pr.number} missing Plane issue link in body/comments`,
             ),
           );
+        }
+        const filesRes = spawnSync(
+          "gh",
+          ["pr", "view", String(pr.number), "--json", "files"],
+          { encoding: "utf8", cwd: ROOT },
+        );
+        if (filesRes.status === 0) {
+          try {
+            const paths = (JSON.parse(filesRes.stdout).files ?? []).map((f) => f.path);
+            const cls = spawnSync(
+              "node",
+              ["scripts/classify-diff.mjs", "--paths", ...paths],
+              { encoding: "utf8", cwd: ROOT },
+            );
+            if (cls.status === 0) {
+              const { verdict } = JSON.parse(cls.stdout);
+              if (verdict === "cross_lane") {
+                findings.push(
+                  finding(
+                    "process.cross-lane-diff",
+                    "fail",
+                    "process compliance",
+                    `Merged PR #${pr.number} touches both product and operator lanes — split required (ADR-0006)`,
+                  ),
+                );
+              }
+            }
+          } catch {
+            /* skip parse errors */
+          }
         }
       }
     }
