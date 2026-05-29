@@ -1,8 +1,10 @@
 ---
 id: HANDOFF-2026-05-28-sdlc-surface-consolidation
 slug: sdlc-surface-consolidation
-status: open
+status: merged
 created_at: 2026-05-28T17:54:17Z
+merged_at: 2026-05-28T19:31:03Z
+merged_via: PR #8 (v0.1.1, be11bfe)
 intent: INT-0004
 spec: SPEC-0003
 adrs: [ADR-0004]
