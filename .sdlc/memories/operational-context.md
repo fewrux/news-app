@@ -14,5 +14,5 @@ updated_by: implementer
 
 ## in_progress (max 10)
 
-- SPEC-0004  intent:INT-0005  adrs:-  tracker:plane:-  since:2026-05-29  pr:0
+- SPEC-0004  intent:INT-0005  adrs:-  tracker:plane:-  since:2026-05-29  pr:12
 
