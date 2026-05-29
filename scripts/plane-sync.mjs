@@ -18,6 +18,8 @@
 //   node scripts/plane-sync.mjs post-evidence         <spec-path> <report-dir> [--head-sha SHA]  # legacy: reads report.json from dir
 //
 //   node scripts/plane-sync.mjs sync-spec            <path-to-spec.md>
+//   node scripts/plane-sync.mjs sync-all-specs       # all linked specs (description + status)
+//   node scripts/plane-sync.mjs set-status-by-id     <SPEC-NNNN> <todo|in_progress|done|...>
 //   node scripts/plane-sync.mjs sync-docs            [docs-dir]  # mirrors docs/*.md to Plane pages
 //   node scripts/plane-sync.mjs purge-docs           [docs-dir]  # DELETEs every page in the local map (recovery)
 
@@ -159,7 +161,8 @@ async function planeFetch(path, init = {}) {
 }
 
 function parseFrontmatter(md) {
-  const m = md.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+  const normalized = md.replace(/\r\n/g, "\n");
+  const m = normalized.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
   if (!m) return { frontmatter: {}, body: md };
   const fm = {};
   for (const line of m[1].split("\n")) {
@@ -281,6 +284,22 @@ const SPEC_STATUS_ALIASES = {
   blocked: ["blocked"],
 };
 
+const PLANE_SPEC_STATUSES = new Set([
+  "todo",
+  "in_progress",
+  "done",
+  "cancelled",
+  "blocked",
+]);
+
+/** @param {string | undefined} specStatus */
+function specStatusToPlaneKey(specStatus) {
+  const s = (specStatus ?? "todo").toLowerCase().trim();
+  if (s === "draft") return "todo";
+  if (PLANE_SPEC_STATUSES.has(s)) return s;
+  return "todo";
+}
+
 async function resolveStateId(statusKey) {
   const aliases = SPEC_STATUS_ALIASES[statusKey];
   if (!aliases) {
@@ -360,12 +379,12 @@ async function createFromSpec(specPath) {
     return;
   }
   const specId = frontmatter.id ?? "SPEC";
-  const todoState = await resolveStateId("todo");
+  const planeState = await resolveStateId(specStatusToPlaneKey(frontmatter.status));
   const issue = await createIssue({
     name: `[${specId}] ${firstHeading(body)}`,
     description_html: buildSpecDescriptionHtml(frontmatter, body),
     labels: ["spec"],
-    state: todoState,
+    state: planeState,
   });
   const base = env.PLANE_API_BASE.replace(/\/+$/, "");
   const url = `${base}/${env.PLANE_WORKSPACE_SLUG}/projects/${env.PLANE_PROJECT_ID}/issues/${issue.id}`;
@@ -396,7 +415,39 @@ async function syncFromSpec(specPath) {
   await patchIssue(issueId, {
     description_html: buildSpecDescriptionHtml(frontmatter, body),
   });
-  console.log(`plane-sync: synced description for issue ${issueId}`);
+  const statusKey = specStatusToPlaneKey(frontmatter.status);
+  const stateId = await resolveStateId(statusKey);
+  await planeFetch(`/issues/${issueId}/`, {
+    method: "PATCH",
+    body: JSON.stringify({ state: stateId }),
+  });
+  console.log(`plane-sync: synced description + status (${statusKey}) for issue ${issueId}`);
+}
+
+async function syncAllSpecs() {
+  ensureEnv();
+  const dir = resolve(".sdlc/specs");
+  const entries = await readdir(dir);
+  let count = 0;
+  for (const f of entries) {
+    if (!/^SPEC-\d{4}-/.test(f) || f === "_template.md") continue;
+    const specPath = join(dir, f);
+    const md = await readFile(specPath, "utf8");
+    const meta = parseSpecTrackerMeta(md);
+    if (meta.issues.length === 0) continue;
+    await syncFromSpec(specPath);
+    count++;
+  }
+  console.log(`plane-sync: synced ${count} linked spec issue(s)`);
+}
+
+async function setStatusBySpecId(specId, statusKey) {
+  const specPath = await findSpecFileById(specId);
+  if (!specPath || !existsSync(specPath)) {
+    console.error(`plane-sync: no spec file for ${specId}`);
+    exit(2);
+  }
+  await setStatus(specPath, statusKey);
 }
 
 /** @param {string} specId e.g. SPEC-0007 */
@@ -1234,6 +1285,8 @@ const handlers = {
   "create-from-incident": ([p])     => createFromIncident(p),
   "create-from-spec":     ([p])     => createFromSpec(p),
   "sync-spec":            ([p])     => syncFromSpec(p),
+  "sync-all-specs":       ()        => syncAllSpecs(),
+  "set-status-by-id":     ([id, s]) => setStatusBySpecId(id, s),
   "set-status":           ([p, s])  => setStatus(p, s),
   "create-from-handoff":  ()        => createFromHandoffDeprecated(),
   "link-spec":            ([p, id]) => linkSpec(p, id),

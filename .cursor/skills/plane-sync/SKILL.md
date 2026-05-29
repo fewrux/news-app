@@ -39,7 +39,9 @@ Commands:
 - `create-from-spec <path-to-spec.md>` — creates a spec issue (Todo state) with
   HTML description (Summary, Behavior, Acceptance criteria, Technical notes),
   writes `tracker.issues[0]` on the spec.
-- `sync-spec <path-to-spec.md>` — refresh HTML description on the linked spec issue.
+- `sync-spec <path-to-spec.md>` — refresh HTML description **and status** on the linked spec issue.
+- `sync-all-specs` — sync every linked spec under `.sdlc/specs/` (description + status).
+- `set-status-by-id <SPEC-NNNN> <status>` — PATCH state when you have the id, not the file path.
 - `set-status <path-to-spec.md> <todo|in_progress|done|cancelled|blocked>` — PATCH linked issue state.
 - `post-evidence <path-to-spec.md> <report-dir> [--head-sha SHA]` — post browser
   evidence comment (+ video attachment) to the spec's Plane issue (ADR-0006).
