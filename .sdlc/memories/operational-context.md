@@ -15,16 +15,20 @@
 >   the detail here.
 
 last_updated: 2026-05-28
-updated_by: implementer
+updated_by: releaser
 
 ## In progress (max 5)
 
-- **SDLC doctor (SPEC-0002)** — `feat/sdlc-doctor`: mechanical checker
-  (`scripts/sdlc-doctor.mjs`), baseline, `/doctor` command, skill, advisory
-  `ci/doctor` workflow, weekly run + eval cases. Refs: HANDOFF-2026-05-28-sdlc-doctor,
-  INT-0003, ADR-0003.
+- _none_
 
 ## Recently completed (max 5, last 14 days)
+
+- **SDLC doctor (SPEC-0002)** — PR #10, released as **v0.1.2**
+  (`.sdlc/releases/v0.1.2.md`). Shipped mechanical drift checker
+  (`scripts/sdlc-doctor.mjs`), lean baseline, `/doctor` command + skill,
+  advisory `ci/doctor`, weekly workflow, eval cases, first-run report.
+  First run flags expected drift: hooks registry `.sh`/`.mjs` and legacy
+  `plane_issue:` on INT-0001. Refs: INT-0003, SPEC-0002, ADR-0003.
 
 - **SDLC surface consolidation** — PR #8, released as **v0.1.1**
   (`.sdlc/releases/v0.1.1.md`). Made `sdlc.yaml` canonical and trimmed the
