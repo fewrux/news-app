@@ -573,8 +573,28 @@ function splitTableRow(line) {
     .map((c) => c.trim());
 }
 
-function mdToHtml(md) {
+/** Merge soft-wrapped list item continuation lines (indented) into one line. */
+function joinListContinuations(md) {
   const lines = md.replace(/\r\n/g, "\n").split("\n");
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i];
+    while (
+      i + 1 < lines.length &&
+      /^\s{2,}\S/.test(lines[i + 1]) &&
+      !/^\s*[-*+]\s+/.test(lines[i + 1]) &&
+      !/^\s*\d+\.\s+/.test(lines[i + 1])
+    ) {
+      line += " " + lines[i + 1].trim();
+      i++;
+    }
+    out.push(line);
+  }
+  return out.join("\n");
+}
+
+function mdToHtml(md) {
+  const lines = joinListContinuations(md).split("\n");
   const out = [];
   let i = 0;
   let listKind = null; // "ul" | "ol" | null
