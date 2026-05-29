@@ -533,6 +533,7 @@ sdlc:
         - { id: /release,   file: .cursor/commands/release.md,   phase: release }
         - { id: /incident,  file: .cursor/commands/incident.md,  phase: operate }
         - { id: /learn,     file: .cursor/commands/learn.md,     phase: learn }
+        - { id: /doctor,    file: .cursor/commands/doctor.md,    phase: learn }
 
     skills:
       # Project-scoped skills, auto-loaded by Cursor when descriptions match.
@@ -543,6 +544,7 @@ sdlc:
         - { id: plane-sync,           path: .cursor/skills/plane-sync/SKILL.md }
         - { id: posthog-instrument,   path: .cursor/skills/posthog-instrument/SKILL.md }
         - { id: browser-evidence,     path: .cursor/skills/browser-evidence/SKILL.md }
+        - { id: sdlc-doctor,          path: .cursor/skills/sdlc-doctor/SKILL.md }
 
     hooks:
       # Deterministic guardrails enforced by Cursor at runtime.
@@ -621,6 +623,8 @@ sdlc:
           - { id: deploy_prod,  file: .github/workflows/deploy-prod.yml,   triggers: [push.main] }
           - { id: plane_sync,   file: .github/workflows/plane-sync.yml,    triggers: [pull_request, issues] }
           - { id: e2e_evidence, file: .github/workflows/e2e-evidence.yml,  triggers: [pull_request] }
+          - { id: doctor,       file: .github/workflows/doctor.yml,        triggers: [pull_request], check_name: ci/doctor, advisory: true }
+          - { id: doctor_weekly,file: .github/workflows/doctor-weekly.yml, triggers: [schedule.weekly] }
       maps_to_phases: [implement, verify, review, release]
 
     plane:

@@ -1,0 +1,15 @@
+{
+  "id": "EVAL-DOCTOR-002",
+  "title": "Doctor warns on legacy plane_issue field",
+  "kind": "regression",
+  "source": { "spec": "SPEC-0002" },
+  "expected_finding_ids": ["artifact.legacy-plane-issue"],
+  "provenance": {
+    "agent_id": "tester",
+    "model": "",
+    "prompt_hash": "",
+    "trace_id": "",
+    "inputs_digest": "",
+    "created_at": "2026-05-28T00:00:00Z"
+  }
+}

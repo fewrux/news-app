@@ -15,11 +15,14 @@
 >   the detail here.
 
 last_updated: 2026-05-28
-updated_by: releaser
+updated_by: implementer
 
 ## In progress (max 5)
 
-- _none_
+- **SDLC doctor (SPEC-0002)** — `feat/sdlc-doctor`: mechanical checker
+  (`scripts/sdlc-doctor.mjs`), baseline, `/doctor` command, skill, advisory
+  `ci/doctor` workflow, weekly run + eval cases. Refs: HANDOFF-2026-05-28-sdlc-doctor,
+  INT-0003, ADR-0003.
 
 ## Recently completed (max 5, last 14 days)
 
