@@ -218,11 +218,12 @@ async function resolveLabels(names) {
   return ids;
 }
 
-async function createIssue({ name, description_html, labels = [], state }) {
+async function createIssue({ name, description, labels = [], state }) {
   const labelIds = await resolveLabels(labels);
+  // Plane work items ingest markdown via `description_html` — no HTML conversion.
   return planeFetch(`/issues/`, {
     method: "POST",
-    body: JSON.stringify({ name, description_html, labels: labelIds, state }),
+    body: JSON.stringify({ name, description_html: description, labels: labelIds, state }),
   });
 }
 
@@ -241,7 +242,7 @@ async function createFromIntent(path) {
   const { frontmatter, body } = parseFrontmatter(md);
   const issue = await createIssue({
     name: `[Intent] ${firstHeading(body)}`,
-    description_html: mdToHtml(body),
+    description: body,
     labels: ["intent", frontmatter.kind].filter(Boolean),
   });
   await rewriteFrontmatter(path, "plane_issue", issue.id);
@@ -254,7 +255,7 @@ async function createFromIncident(path) {
   const { frontmatter, body } = parseFrontmatter(md);
   const issue = await createIssue({
     name: `[Incident] ${firstHeading(body)}`,
-    description_html: mdToHtml(body),
+    description: body,
     labels: ["incident", frontmatter.severity].filter(Boolean),
   });
   await rewriteFrontmatter(path, "plane_issue", issue.id);
@@ -363,7 +364,7 @@ async function createFromSpec(specPath) {
   const todoState = await resolveStateId("todo");
   const issue = await createIssue({
     name: `[${specId}] ${firstHeading(body)}`,
-    description_html: buildSpecDescriptionHtml(frontmatter, body),
+    description: buildSpecDescriptionMarkdown(frontmatter, body),
     labels: ["spec"],
     state: todoState,
   });
@@ -394,7 +395,7 @@ async function syncFromSpec(specPath) {
     exit(2);
   }
   await patchIssue(issueId, {
-    description_html: buildSpecDescriptionHtml(frontmatter, body),
+    description_html: buildSpecDescriptionMarkdown(frontmatter, body),
   });
   console.log(`plane-sync: synced description for issue ${issueId}`);
 }
@@ -573,8 +574,28 @@ function splitTableRow(line) {
     .map((c) => c.trim());
 }
 
-function mdToHtml(md) {
+/** Merge soft-wrapped list item continuation lines (indented) into one line. */
+function joinListContinuations(md) {
   const lines = md.replace(/\r\n/g, "\n").split("\n");
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i];
+    while (
+      i + 1 < lines.length &&
+      /^\s{2,}\S/.test(lines[i + 1]) &&
+      !/^\s*[-*+]\s+/.test(lines[i + 1]) &&
+      !/^\s*\d+\.\s+/.test(lines[i + 1])
+    ) {
+      line += " " + lines[i + 1].trim();
+      i++;
+    }
+    out.push(line);
+  }
+  return out.join("\n");
+}
+
+function mdToHtml(md) {
+  const lines = joinListContinuations(md).split("\n");
   const out = [];
   let i = 0;
   let listKind = null; // "ul" | "ol" | null
@@ -750,11 +771,6 @@ function buildSpecDescriptionMarkdown(fm, body) {
     "",
     tech,
   ].join("\n");
-}
-
-/** @param {Record<string, string>} fm @param {string} body */
-function buildSpecDescriptionHtml(fm, body) {
-  return mdToHtml(buildSpecDescriptionMarkdown(fm, body));
 }
 
 async function collectDocFiles(rootRel) {
@@ -1179,7 +1195,7 @@ async function fromGithubEvent() {
     const body = `${gh.html_url}\n\n${gh.body ?? ""}`;
     const issue = await createIssue({
       name: `[GH #${gh.number}] ${gh.title}`,
-      description_html: mdToHtml(body),
+      description: body,
       labels: ["github", "issue"],
     });
     console.log(`plane-sync: created GH issue mirror ${issue.id}`);
