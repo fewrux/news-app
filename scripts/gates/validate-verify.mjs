@@ -71,7 +71,8 @@ export async function validateVerify(specPath, headSha) {
 
   let payload = null;
   if (headSha) {
-    for (let i = bodies.length - 1; i >= 0; i--) {
+    // Plane lists comments newest-first; take the first matching head_sha.
+    for (let i = 0; i < bodies.length; i++) {
       const p = extractMarkerPayload(bodies[i], "verify");
       if (p && typeof p === "object" && /** @type {{head_sha?: string}} */ (p).head_sha === headSha) {
         payload = p;
