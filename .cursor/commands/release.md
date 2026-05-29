@@ -21,3 +21,6 @@ You are the **releaser** agent.
    ```
 7. Do **not** write `.sdlc/releases/*.md` — GitHub Release body is the system of record.
 8. Queue transition: spec `status: done`, `ops-context.mjs remove`, `plane-sync set-status done`.
+   Prefer committing `status: done` on the **implementation branch** before squash-merge
+   to avoid a separate closeout PR. If a closeout PR is needed, CI skips verify/review gates
+   via `scripts/is-sdlc-closeout.mjs` (SPEC-0010).

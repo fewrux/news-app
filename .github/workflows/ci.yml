@@ -89,6 +89,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
       - run: npm ci --no-audit --no-fund
@@ -97,13 +99,23 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
-        run: node scripts/check-phase-exit.mjs --phase review --pr "$PR_NUMBER"
+        run: |
+          set -euo pipefail
+          if node scripts/is-sdlc-closeout.mjs \
+            --base "${{ github.event.pull_request.base.sha }}" \
+            --head "${{ github.event.pull_request.head.sha }}"; then
+            echo "gate.review: pass — SDLC closeout PR (review on implementation PR)"
+            exit 0
+          fi
+          node scripts/check-phase-exit.mjs --phase review --pr "$PR_NUMBER"
 
   verify-gate:
     if: github.event.pull_request != null
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
       - run: npm ci --no-audit --no-fund
@@ -133,4 +145,11 @@ jobs:
           PLANE_PROJECT_ID: ${{ secrets.PLANE_PROJECT_ID }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
+          set -euo pipefail
+          if node scripts/is-sdlc-closeout.mjs \
+            --base "${{ github.event.pull_request.base.sha }}" \
+            --head "${{ github.event.pull_request.head.sha }}"; then
+            echo "gate.verify: pass — SDLC closeout PR (verify on implementation PR)"
+            exit 0
+          fi
           node scripts/check-phase-exit.mjs --phase verify --spec "${{ steps.spec.outputs.path }}" --head-sha "$HEAD_SHA"
