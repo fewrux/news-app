@@ -7,8 +7,8 @@ complexity: normal
 created_at: 2026-05-29T16:58:59Z
 tracker:
   provider: plane
-  issues: []
-  url: ""
+  issues: [f1b54e54-884a-44ed-b6da-1e4e92497f75]
+  url: "https://api.plane.so/integritas/projects/c3ef1967-15a0-4177-bfb3-64605e06a779/issues/f1b54e54-884a-44ed-b6da-1e4e92497f75"
 tracker_waiver: PLANE_* not in local .env.local; run create-from-spec after merge or in CI with secrets
 provenance:
   agent_id: planner
