@@ -13,6 +13,7 @@ export const MARKERS = {
   verify: { open: "<!-- sdlc:verify:v1 -->", close: "<!-- /sdlc:verify:v1 -->" },
   review: { open: "<!-- sdlc:review:v1 -->", close: "<!-- /sdlc:review:v1 -->" },
   release: { open: "<!-- sdlc:release:v1 -->", close: "<!-- /sdlc:release:v1 -->" },
+  pr: { open: "<!-- sdlc:pr:v1 -->", close: "<!-- /sdlc:pr:v1 -->" },
 };
 
 /**

@@ -17,7 +17,7 @@
 //   node scripts/plane-sync.mjs post-evidence         <spec-path> --payload <report.json> [--head-sha SHA]
 //   node scripts/plane-sync.mjs post-evidence         <spec-path> <report-dir> [--head-sha SHA]  # legacy: reads report.json from dir
 //
-// Plane-only extras (not part of the adapter contract):
+//   node scripts/plane-sync.mjs sync-spec            <path-to-spec.md>
 //   node scripts/plane-sync.mjs sync-docs            [docs-dir]  # mirrors docs/*.md to Plane pages
 //   node scripts/plane-sync.mjs purge-docs           [docs-dir]  # DELETEs every page in the local map (recovery)
 
@@ -29,7 +29,8 @@ import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import { randomBytes } from "node:crypto";
 import { unlink } from "node:fs/promises";
-import { wrapMarkerPayload } from "./gates/common.mjs";
+import { wrapMarkerPayload, extractMarkerPayload } from "./gates/common.mjs";
+import { listIssueComments } from "./gates/plane-client.mjs";
 
 const REQUIRED = [
   "PLANE_API_BASE",
@@ -217,11 +218,18 @@ async function resolveLabels(names) {
   return ids;
 }
 
-async function createIssue({ name, description, labels = [], state }) {
+async function createIssue({ name, description_html, labels = [], state }) {
   const labelIds = await resolveLabels(labels);
   return planeFetch(`/issues/`, {
     method: "POST",
-    body: JSON.stringify({ name, description, labels: labelIds, state }),
+    body: JSON.stringify({ name, description_html, labels: labelIds, state }),
+  });
+}
+
+async function patchIssue(issueId, patch) {
+  return planeFetch(`/issues/${issueId}/`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
   });
 }
 
@@ -233,7 +241,7 @@ async function createFromIntent(path) {
   const { frontmatter, body } = parseFrontmatter(md);
   const issue = await createIssue({
     name: `[Intent] ${firstHeading(body)}`,
-    description: body,
+    description_html: mdToHtml(body),
     labels: ["intent", frontmatter.kind].filter(Boolean),
   });
   await rewriteFrontmatter(path, "plane_issue", issue.id);
@@ -246,7 +254,7 @@ async function createFromIncident(path) {
   const { frontmatter, body } = parseFrontmatter(md);
   const issue = await createIssue({
     name: `[Incident] ${firstHeading(body)}`,
-    description: body,
+    description_html: mdToHtml(body),
     labels: ["incident", frontmatter.severity].filter(Boolean),
   });
   await rewriteFrontmatter(path, "plane_issue", issue.id);
@@ -355,7 +363,7 @@ async function createFromSpec(specPath) {
   const todoState = await resolveStateId("todo");
   const issue = await createIssue({
     name: `[${specId}] ${firstHeading(body)}`,
-    description: body.slice(0, 4000),
+    description_html: buildSpecDescriptionHtml(frontmatter, body),
     labels: ["spec"],
     state: todoState,
   });
@@ -367,6 +375,116 @@ async function createFromSpec(specPath) {
     url,
   });
   console.log(`plane-sync: created spec issue ${issue.id} (${issue.name})`);
+}
+
+async function syncFromSpec(specPath) {
+  ensureEnv();
+  if (!existsSync(specPath)) {
+    console.error(`plane-sync: spec not found: ${specPath}`);
+    exit(2);
+  }
+  const md = await readFile(specPath, "utf8");
+  const { frontmatter, body } = parseFrontmatter(md);
+  const meta = parseSpecTrackerMeta(md);
+  const issueId = meta.issues[0];
+  if (!issueId) {
+    console.error(
+      "plane-sync: spec has no tracker issue — run create-from-spec or link-spec first",
+    );
+    exit(2);
+  }
+  await patchIssue(issueId, {
+    description_html: buildSpecDescriptionHtml(frontmatter, body),
+  });
+  console.log(`plane-sync: synced description for issue ${issueId}`);
+}
+
+/** @param {string} specId e.g. SPEC-0007 */
+async function findSpecFileById(specId) {
+  const dir = resolve(".sdlc/specs");
+  const entries = await readdir(dir);
+  const match = entries.find(
+    (f) =>
+      f.startsWith(`${specId}-`) &&
+      f.endsWith(".md") &&
+      f !== "_template.md",
+  );
+  return match ? join(dir, match) : null;
+}
+
+/** @param {string | null | undefined} text */
+function parseSpecIdFromText(text) {
+  const m = (text ?? "").match(/\b(SPEC-\d{4})\b/);
+  return m ? m[1] : null;
+}
+
+async function handlePullRequestEvent(event) {
+  const pr = event.pull_request;
+  const action = event.action ?? "unknown";
+  const specId = parseSpecIdFromText(pr.body);
+  if (!specId) {
+    console.log(`plane-sync: PR #${pr.number} has no SPEC id in body; skipping`);
+    return;
+  }
+
+  const specPath = await findSpecFileById(specId);
+  if (!specPath || !existsSync(specPath)) {
+    console.warn(
+      `plane-sync: spec file for ${specId} not found at checkout; skipping`,
+    );
+    return;
+  }
+
+  const md = await readFile(specPath, "utf8");
+  const meta = parseSpecTrackerMeta(md);
+  const issueId = meta.issues[0];
+  if (!issueId) {
+    console.warn(
+      `plane-sync: ${specId} has no tracker issue; skipping PR comment`,
+    );
+    return;
+  }
+
+  const comments = await listIssueComments(issueId);
+  const headSha = pr.head?.sha ?? null;
+  for (const c of comments) {
+    const payload = extractMarkerPayload(c.html, "pr");
+    if (
+      payload &&
+      typeof payload === "object" &&
+      payload.pr_id === pr.number &&
+      payload.action === action
+    ) {
+      console.log(
+        `plane-sync: PR #${pr.number} ${action} already on issue ${issueId}; skipping`,
+      );
+      return;
+    }
+  }
+
+  const prPayload = {
+    schema: "sdlc.pr.v1",
+    pr_id: pr.number,
+    action,
+    url: pr.html_url,
+    head_sha: headSha,
+    posted_at: new Date().toISOString(),
+  };
+
+  const actionLabel = action.replace(/_/g, " ");
+  const html = `<p><strong>Pull request</strong> — <a href="${escapeHtml(pr.html_url)}">#${pr.number}</a> (${escapeHtml(actionLabel)})</p>
+<ul>
+<li>Title: ${escapeHtml(pr.title)}</li>
+<li>Head SHA: <code>${escapeHtml(headSha ?? "n/a")}</code></li>
+<li>State: <code>${escapeHtml(pr.state ?? "unknown")}</code></li>
+</ul>
+${wrapMarkerPayload("pr", prPayload)}
+<p><em>Posted by news-app plane-sync github-event.</em></p>`;
+
+  await postIssueComment(issueId, html);
+  console.log(
+    `plane-sync: posted PR #${pr.number} (${action}) on spec issue ${issueId}`,
+  );
 }
 
 async function setStatus(specPath, statusKey) {
@@ -584,6 +702,59 @@ function mdToHtml(md) {
   }
   closeList();
   return out.join("\n");
+}
+
+/** @param {string} body @param {string} heading */
+function extractSpecSection(body, heading) {
+  const esc = heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`^##\\s+${esc}\\s*\\r?\\n([\\s\\S]*?)(?=^##\\s+|\\Z)`, "im");
+  const m = body.replace(/\r\n/g, "\n").match(re);
+  return m ? m[1].trim() : "";
+}
+
+/** @param {Record<string, string>} fm @param {string} body */
+function buildTechnicalNotesMarkdown(fm, body) {
+  const explicit = extractSpecSection(body, "Technical notes");
+  if (explicit) return explicit;
+  const parts = [];
+  if (fm.surface) parts.push(`- **Surface:** ${fm.surface}`);
+  if (fm.complexity) parts.push(`- **Complexity:** ${fm.complexity}`);
+  if (fm.intent) parts.push(`- **Intent:** ${fm.intent}`);
+  const risks = extractSpecSection(body, "Risks");
+  const oos = extractSpecSection(body, "Out of scope");
+  if (risks) parts.push(`**Risks**\n\n${risks}`);
+  if (oos) parts.push(`**Out of scope**\n\n${oos}`);
+  return parts.length ? parts.join("\n\n") : "_None._";
+}
+
+/** @param {Record<string, string>} fm @param {string} body */
+function buildSpecDescriptionMarkdown(fm, body) {
+  const summary = extractSpecSection(body, "Summary") || "_No summary._";
+  const behavior = extractSpecSection(body, "Behavior") || "_No behavior._";
+  const ac = extractSpecSection(body, "Acceptance criteria") || "_No acceptance criteria._";
+  const tech = buildTechnicalNotesMarkdown(fm, body);
+  return [
+    "## Summary",
+    "",
+    summary,
+    "",
+    "## Behavior",
+    "",
+    behavior,
+    "",
+    "## Acceptance criteria",
+    "",
+    ac,
+    "",
+    "## Technical notes",
+    "",
+    tech,
+  ].join("\n");
+}
+
+/** @param {Record<string, string>} fm @param {string} body */
+function buildSpecDescriptionHtml(fm, body) {
+  return mdToHtml(buildSpecDescriptionMarkdown(fm, body));
 }
 
 async function collectDocFiles(rootRel) {
@@ -1002,18 +1173,13 @@ async function fromGithubEvent() {
   const eventName = env.GITHUB_EVENT_NAME ?? "";
 
   if (eventName === "pull_request") {
-    const pr = event.pull_request;
-    const issue = await createIssue({
-      name: `[PR #${pr.number}] ${pr.title}`,
-      description: `${pr.html_url}\n\n${pr.body ?? ""}`,
-      labels: ["github", "pr"],
-    });
-    console.log(`plane-sync: created PR mirror issue ${issue.id}`);
+    await handlePullRequestEvent(event);
   } else if (eventName === "issues") {
     const gh = event.issue;
+    const body = `${gh.html_url}\n\n${gh.body ?? ""}`;
     const issue = await createIssue({
       name: `[GH #${gh.number}] ${gh.title}`,
-      description: `${gh.html_url}\n\n${gh.body ?? ""}`,
+      description_html: mdToHtml(body),
       labels: ["github", "issue"],
     });
     console.log(`plane-sync: created GH issue mirror ${issue.id}`);
@@ -1030,6 +1196,7 @@ const handlers = {
   "create-from-intent":   ([p])     => createFromIntent(p),
   "create-from-incident": ([p])     => createFromIncident(p),
   "create-from-spec":     ([p])     => createFromSpec(p),
+  "sync-spec":            ([p])     => syncFromSpec(p),
   "set-status":           ([p, s])  => setStatus(p, s),
   "create-from-handoff":  ()        => createFromHandoffDeprecated(),
   "link-spec":            ([p, id]) => linkSpec(p, id),

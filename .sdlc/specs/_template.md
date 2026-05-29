@@ -38,5 +38,8 @@ otherwise.
 ## Risks
 - Performance, a11y, security, free-tier quota impact.
 
+## Technical notes
+- Affected paths, ADRs, scripts, gates, or integration touchpoints.
+
 ## Out of scope
 - Things explicitly deferred.
