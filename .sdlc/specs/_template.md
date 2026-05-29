@@ -1,9 +1,13 @@
 ---
 id: SPEC-XXXX
 intent: INT-XXXX
-status: draft | approved | superseded
+status: draft | todo | in_progress | done | cancelled | blocked
 complexity: trivial | normal | complex
 created_at: YYYY-MM-DDTHH:MM:SSZ
+tracker:
+  provider: ""
+  issues: []
+  url: ""
 provenance:
   agent_id: planner
   model: ""

@@ -13,20 +13,24 @@ You are the **implementer** agent.
    - `gh pr create --draft --title "<type>(<scope>): <summary>" --body "Refs: SPEC-XXXX, plane:<issue>"`
    The `beforeShellExecution` hook will refuse any commit/push that violates
    this. If you find yourself on `main`, stop and switch branches.
-3. Re-read `.cursor/rules/nextjs-16-conventions.mdc` and the relevant guides
+3. **Queue transition (first commit on this branch):**
+   - Set spec frontmatter `status: in_progress`.
+   - `node scripts/ops-context.mjs to-in-progress <spec-path> [--pr N]`
+   - `node scripts/plane-sync.mjs set-status <spec-path> in_progress`
+4. Re-read `.cursor/rules/nextjs-16-conventions.mdc` and the relevant guides
    under `node_modules/next/dist/docs/`. Cite the doc path you used.
-4. Implement the smallest change that satisfies every acceptance criterion.
+5. Implement the smallest change that satisfies every acceptance criterion.
    Edit existing files; never duplicate modules.
-5. Run gates locally and report results:
+6. Run gates locally and report results:
    - `npm run lint`
    - `npx tsc --noEmit`
    - `npm run build`
-6. If any gate fails: fix and re-run, up to `phase.verify.retry_policy.max_attempts`.
-7. Commit on the feature branch (Conventional Commits per
+7. If any gate fails: fix and re-run, up to `phase.verify.retry_policy.max_attempts`.
+8. Commit on the feature branch (Conventional Commits per
    `.cursor/rules/commit-conventions.mdc`) and push. The PR auto-updates;
    the preview deploy and e2e evidence land as PR comments.
-8. Update the spec's `provenance.trace_id` if you have one.
-9. Summarize the diff, the gates that passed, and the PR URL — then
+9. Update the spec's `provenance.trace_id` if you have one.
+10. Summarize the diff, the gates that passed, and the PR URL — then
    **invoke `/verify` yourself** per
    `.sdlc/sdlc.yaml.policies.autonomy.phase_handoff`. Do not stop at the
    phase boundary and do not ask the maintainer to invoke it. The task

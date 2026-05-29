@@ -23,3 +23,10 @@ You are the **releaser** agent.
    deployment url, PostHog dashboard link, SLO outcome at each stage,
    and whether human approval was triggered (cite the condition if so).
 6. Tag the commit `v<version>` and update the Plane cycle (auto-close).
+
+7. **Queue transition (on PR merge / release note):**
+   - Set each shipped spec frontmatter `status: done`.
+   - `node scripts/ops-context.mjs remove <spec-path>`
+   - `node scripts/plane-sync.mjs set-status <spec-path> done`
+   For block/cancel: set `status: blocked` or `cancelled`, run `remove`, then
+   `set-status` with the matching status.

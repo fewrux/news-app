@@ -28,26 +28,24 @@ This repo runs an AI-native SDLC. The contract is `.sdlc/sdlc.yaml`; humans writ
 
 **Entry points (use the slash commands — they enforce phases and gates):**
 
-`/intent` → `/spec` → `/adr?` → `/handoff?` → `/implement` → `/verify` → `/review` → `/release`
+`/intent` → `/spec` → `/adr?` → `/implement` → `/verify` → `/review` → `/release`
 
 Operate / learn loop: `/incident` · `/learn`
 
 Drift loop (read-only health checker): `/doctor` (behavior shipping in SPEC-0002; identity card already in place).
 
-**Pending handoffs (read before doing anything):**
+**Pending work (read before doing anything):**
 
-The cross-session work queue lives at `.sdlc/handoffs/INDEX.md` — one
-handoff per line under `## open`, in a token-optimised format any
-agent harness can parse. Cursor sessions auto-surface this via the
-`sessionStart` hook (`.cursor/hooks/load-context.mjs`); **other
-harnesses (Claude Code, Codex CLI, Aider, Gemini CLI) must read
-`.sdlc/handoffs/INDEX.md` § "## open" before their first response**.
-If any handoff is open, summarise it for the maintainer and ask which
-to pick up — do not start unrelated work. Picking up a handoff means
-invoking `/implement <linked-spec-path>` and executing end-to-end per
-`.cursor/rules/agent-autonomy.mdc`. The handoff system is declared in
-SPEC-0001; the vendor-agnostic tracker abstraction sitting behind it
-is ADR-0002.
+The cross-session queue lives in `.sdlc/memories/operational-context.md`
+(`## todo`, `## in_progress`) keyed by spec id. Spec frontmatter `status` is
+source of truth; ops-context is a denormalized index. Cursor sessions
+auto-surface todo/in-progress ids via `sessionStart`
+(`.cursor/hooks/load-context.mjs`); other harnesses must read
+operational-context before their first response. If any spec is queued, list
+ids and ask which to `/implement` — do not start unrelated work. Pickup =
+`/implement <spec-path>` end-to-end per `.cursor/rules/agent-autonomy.mdc`.
+Plane sync: `scripts/plane-sync.mjs create-from-spec` / `set-status` per
+ADR-0005 (amends ADR-0002).
 
 <!-- BEGIN:nextjs-agent-rules -->
 # This is NOT the Next.js you know

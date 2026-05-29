@@ -173,7 +173,7 @@ sdlc:
       owner: planner
       inputs:  [artifact.intent]
       outputs: [artifact.spec, artifact.acceptance_criteria]
-      gates:   [gate.spec_testable, gate.spec_scoped]
+      gates:   [gate.spec_testable, gate.spec_scoped, gate.spec_tracker_mirrored]
       human_required: false
       review_by: [maintainer]    # async review, non-blocking unless gate fails
 
@@ -184,19 +184,6 @@ sdlc:
       gates:   [gate.adr_alternatives_considered]
       skip_when: "spec.complexity == trivial"
 
-    - id: handoff
-      # Optional cross-session bridge. Invoked when the session producing
-      # the spec is NOT the session implementing it. Bundles a session's
-      # intent + spec + ADR(s) into a handoff cover sheet and mirrors it
-      # to the active tracker. Not in workflows.*.steps; reachable via
-      # /handoff. See SPEC-0001 and ADR-0002.
-      owner: planner
-      assists: [architect]
-      inputs:  [artifact.intent, artifact.spec]   # artifact.adr is optional
-      outputs: [artifact.handoff]
-      gates:   [gate.handoff_bundle_complete, gate.tracker_mirrored]
-      optional: true
-      exit_when: "handoff appears in .sdlc/handoffs/INDEX.md ## open AND tracker mirror recorded OR explicit waiver committed"
 
     - id: implement
       owner: implementer
@@ -311,14 +298,6 @@ sdlc:
         notes: |
           The doctor agent also writes here, with filename pattern
           doctor-{YYYY-MM-DD}.md (SDLC drift report; not a PR review).
-      handoff:
-        # Cross-session work bridge produced by /handoff. See SPEC-0001.
-        # Status transitions: open -> in_progress -> merged (or cancelled).
-        # Indexed by .sdlc/handoffs/INDEX.md; the session-start hook
-        # surfaces that index's ## open section to every new session.
-        location: .sdlc/handoffs/HANDOFF-{date}-{slug}.md
-        schema: { context, links: { intent, spec, adrs }, tracker, status }
-        provenance: *provenance
       release_note:
         location: .sdlc/releases/{version}.md
       incident:
@@ -351,14 +330,10 @@ sdlc:
       asserts: "ADR lists >= 2 alternatives with trade-offs"
       runner: agent.reviewer
 
-    handoff_bundle_complete:
-      asserts: "handoff frontmatter resolves intent, spec, and any referenced ADR(s) to existing files"
-      runner: agent.planner
-
-    tracker_mirrored:
-      asserts: "handoff.tracker.epic and tracker.issues are populated OR a soft-fail note is committed"
+    spec_tracker_mirrored:
+      asserts: "spec at status todo has tracker.issues[0] populated OR explicit waiver note committed"
       runner: shell
-      tolerate_missing: true   # PLANE_* env may be absent in local dev; /handoff falls back gracefully
+      tolerate_missing: true   # PLANE_* env may be absent in local dev; /spec falls back gracefully
 
     lint:        { runner: shell, command: "npm run lint" }
     typecheck:   { runner: shell, command: "npx tsc --noEmit" }
@@ -526,7 +501,6 @@ sdlc:
         - { id: /intent,    file: .cursor/commands/intent.md,    phase: ideate }
         - { id: /spec,      file: .cursor/commands/spec.md,      phase: specify }
         - { id: /adr,       file: .cursor/commands/adr.md,       phase: design }
-        - { id: /handoff,   file: .cursor/commands/handoff.md,   phase: handoff }
         - { id: /implement, file: .cursor/commands/implement.md, phase: implement }
         - { id: /verify,    file: .cursor/commands/verify.md,    phase: verify }
         - { id: /review,    file: .cursor/commands/review.md,    phase: review }
@@ -585,7 +559,7 @@ sdlc:
       # phases owned, gates required, tools allowed, and invocation entry.
       location: .cursor/agents/
       registry:
-        - { id: planner,     file: .cursor/agents/planner.md,     owns: [ideate, specify, handoff] }
+        - { id: planner,     file: .cursor/agents/planner.md,     owns: [ideate, specify] }
         - { id: architect,   file: .cursor/agents/architect.md,   owns: [design] }
         - { id: implementer, file: .cursor/agents/implementer.md, owns: [implement] }
         - { id: tester,      file: .cursor/agents/tester.md,      owns: [verify] }
@@ -640,10 +614,9 @@ sdlc:
         - { from: artifact.intent,   to: plane.issue,  state: backlog,      labels: [intent] }
         - { from: artifact.spec,     to: plane.issue,  state: todo,         labels: [spec] }
         - { from: artifact.incident, to: plane.issue,  state: in_progress,  labels: [incident, p1] }
-        - { from: artifact.handoff,  to: plane.module, children: plane.issue, labels: [handoff] }
         - { from: phase.release,     to: plane.cycle,  auto_close: true }
       sync_script: scripts/plane-sync.mjs
-      maps_to_phases: [ideate, specify, handoff, operate, release]
+      maps_to_phases: [ideate, specify, operate, release]
 
     tracker:
       # Vendor-agnostic project-management abstraction per ADR-0002. SDLC
@@ -669,7 +642,8 @@ sdlc:
         subcommands:
           - { name: create-from-intent,   args: "<path-to-intent.md>",   writes: "tracker.issues[0] back to frontmatter" }
           - { name: create-from-incident, args: "<path-to-incident.md>", writes: "tracker.issues[0] back to frontmatter" }
-          - { name: create-from-handoff,  args: "<path-to-handoff.md>",  writes: "tracker.epic + tracker.issues back to frontmatter" }
+          - { name: create-from-spec,     args: "<path-to-spec.md>",     writes: "tracker.issues[0] back to frontmatter" }
+          - { name: set-status,           args: "<path-to-spec.md> <status>", writes: "(none — PATCH linked issue state)" }
           - { name: link-spec,            args: "<path-to-spec.md> <issue-id>", writes: "tracker.issues[0] back to frontmatter" }
           - { name: close-cycle,          args: "<cycle-id>",            writes: "(none)" }
           - { name: github-event,         args: "(reads $GITHUB_EVENT_PATH)", writes: "(none)" }
@@ -681,10 +655,9 @@ sdlc:
           example: |
             tracker:
               provider: plane          # mirrors active_provider
-              epic: NEWS-42            # provider-native id; only for artifact.handoff
-              issues: [NEWS-43, NEWS-44]
+              issues: [NEWS-43]
               url: ""                  # provider-native deep link; optional
-      maps_to_phases: [ideate, specify, handoff, operate, release]
+      maps_to_phases: [ideate, specify, operate, release]
 
     vercel:
       role: deployment

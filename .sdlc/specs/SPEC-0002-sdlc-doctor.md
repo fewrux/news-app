@@ -1,7 +1,7 @@
 ---
 id: SPEC-0002
 intent: INT-0003
-status: approved
+status: done
 complexity: complex
 created_at: 2026-05-28T16:40:00Z
 provenance:

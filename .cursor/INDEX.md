@@ -27,7 +27,7 @@ gates required, tools allowed, and how to invoke it.
 
 | Agent         | Owns phase               | Invoke with               | Model class      |
 |---------------|--------------------------|---------------------------|------------------|
-| planner       | ideate, specify, handoff | `/intent`, `/spec`, `/handoff` | reasoning_high   |
+| planner       | ideate, specify | `/intent`, `/spec` | reasoning_high   |
 | architect     | design                   | `/adr`                    | reasoning_high   |
 | implementer   | implement                | `/implement`              | coding_fast      |
 | tester        | verify                   | `/verify`                 | coding_fast      |
@@ -42,7 +42,7 @@ gates required, tools allowed, and how to invoke it.
 One per SDLC phase. The command file is the prompt; running it conscripts the
 right agent and enforces the phase's gates.
 
-`/intent`, `/spec`, `/adr`, `/handoff`, `/implement`, `/verify`, `/review`,
+`/intent`, `/spec`, `/adr`, `/implement`, `/verify`, `/review`,
 `/release`, `/incident`, `/learn`
 
 `/doctor` ships with SPEC-0002 (next session, dispatched via the handoff

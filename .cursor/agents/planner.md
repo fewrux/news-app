@@ -22,11 +22,12 @@ Turns raw intent into specs, tasks, and acceptance criteria.
 - `gate.intent_clear` — intent has problem, users, measurable success metric.
 - `gate.spec_testable` — every AC maps to a Playwright test or eval case id.
 - `gate.spec_scoped` — spec touches < 10 files OR is split.
+- `gate.spec_tracker_mirrored` — spec at `status: todo` has tracker issue or waiver.
 
 ## Invocation
 
 - `/intent` — write `.sdlc/intents/INT-NNNN-<slug>.md`
-- `/spec`   — write `.sdlc/specs/SPEC-NNNN-<slug>.md`
+- `/spec`   — write `.sdlc/specs/SPEC-NNNN-<slug>.md`; on completion set `status: todo`, ops-context `add-open`, `create-from-spec`
 
 ## Constraints
 
