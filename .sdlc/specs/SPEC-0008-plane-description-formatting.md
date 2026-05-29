@@ -1,7 +1,7 @@
 ---
 id: SPEC-0008
 intent: INT-0009
-status: in_progress
+status: done
 surface: operator
 complexity: trivial
 created_at: 2026-05-29T22:05:00Z
