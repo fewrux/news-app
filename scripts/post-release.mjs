@@ -7,10 +7,39 @@
  */
 import { readFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
-import { resolve } from "node:path";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { argv, env, exit } from "node:process";
 import { wrapMarkerPayload } from "./gates/common.mjs";
 import { validateRelease } from "./gates/validate-release.mjs";
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const PLANE_REQUIRED = [
+  "PLANE_API_BASE",
+  "PLANE_API_TOKEN",
+  "PLANE_WORKSPACE_SLUG",
+  "PLANE_PROJECT_ID",
+];
+
+function syncReleaseSpecsToPlane(specIds) {
+  const missing = PLANE_REQUIRED.filter((k) => !env[k]);
+  if (missing.length) {
+    console.warn(
+      `post-release: skipping Plane set-status (missing ${missing.join(", ")})`,
+    );
+    return;
+  }
+  for (const specId of specIds) {
+    const r = spawnSync(
+      "node",
+      [resolve(ROOT, "scripts/plane-sync.mjs"), "set-status-by-id", specId, "done"],
+      { encoding: "utf8", env: process.env, cwd: ROOT },
+    );
+    if (r.status !== 0) {
+      console.warn(`post-release: Plane set-status ${specId} failed: ${(r.stderr || r.stdout).trim()}`);
+    }
+  }
+}
 
 function arg(name) {
   const i = argv.indexOf(name);
@@ -66,6 +95,9 @@ async function main() {
   ]);
 
   validateRelease(normalized);
+  syncReleaseSpecsToPlane(
+    Array.isArray(payload.spec_ids) ? payload.spec_ids : [],
+  );
   console.log(JSON.stringify({ ok: true, tag: normalized }));
 }
 
