@@ -1,5 +1,6 @@
 import {
   fail,
+  extractMarkerPayload,
   latestMarkerPayload,
   parseFrontmatter,
   parseNestedBlock,
@@ -67,7 +68,18 @@ export async function validateVerify(specPath, headSha) {
 
   const comments = await listIssueComments(issueId);
   const bodies = comments.map((c) => c.html + "\n" + c.text);
-  const payload = latestMarkerPayload(bodies, "verify");
+
+  let payload = null;
+  if (headSha) {
+    for (let i = bodies.length - 1; i >= 0; i--) {
+      const p = extractMarkerPayload(bodies[i], "verify");
+      if (p && typeof p === "object" && /** @type {{head_sha?: string}} */ (p).head_sha === headSha) {
+        payload = p;
+        break;
+      }
+    }
+  }
+  if (!payload) payload = latestMarkerPayload(bodies, "verify");
   if (!payload) {
     fail(`no sdlc:verify:v1 marker on Plane issue ${issueId} — run plane-sync post-evidence`);
   }
