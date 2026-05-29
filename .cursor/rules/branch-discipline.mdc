@@ -10,12 +10,13 @@ This project is **trunk-based**. `main` is the only long-lived branch and it is
 **protected**. The contract is declared in
 `.sdlc/sdlc.yaml.integrations.github.branch_strategy.protection`:
 
-- `require_status_checks: [ci/lint, ci/typecheck, ci/build, ci/review-gate]`
-- `require_review_approved: false` (superseded by `ci/review-gate` per ADR-0001)
+- `require_status_checks: [ci/lint, ci/typecheck, ci/build, ci/verify-gate, ci/review-gate]`
+- `require_review_approved: false` (superseded by `ci/review-gate` per ADR-0007)
 - `disallow_force_push_to_main: true`
 
-`gate.review_approved` is enforced via the **SDLC artifact**, not via GitHub's
-native review event. The `ci/review-gate` job reads `.sdlc/reviews/PR-<N>.md`.
+`gate.review_approved` reads a **PR comment** with `sdlc:review:v1` marker
+(ADR-0007). `gate.verify` reads a **Plane issue comment** with `sdlc:verify:v1`.
+Both via `scripts/check-phase-exit.mjs` in CI — no committed `.sdlc/reviews/`.
 
 ## Single-lane PRs (ADR-0006)
 
@@ -45,9 +46,8 @@ Every PR carries:
 
 - A **Plane issue** link (via `scripts/plane-sync.mjs`)
 - A **Vercel preview URL** (auto-posted for PRs; N/A for some operator-only work)
-- **Browser evidence:** Plane comment URL (product) or explicit waiver in the
-  reviewer artifact (operator)
-- **Reviewer approval** (distinct from implementer)
+- **Browser evidence:** Plane verify comment (product) or waived in verify payload (operator)
+- **Reviewer approval:** PR comment with `sdlc:review:v1` (distinct from implementer)
 
 ## When in doubt
 

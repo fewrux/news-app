@@ -6,7 +6,7 @@
 > this file is a denormalized index synced on every transition.
 
 last_updated: 2026-05-29
-updated_by: releaser
+updated_by: implementer
 
 ## todo (max 10)
 
@@ -14,4 +14,5 @@ updated_by: releaser
 
 ## in_progress (max 10)
 
-- _none_
+- SPEC-0006  intent:INT-0007  adrs:ADR-0007  tracker:plane:aff2f3b6-0aa9-4d3d-8ad6-a9e5687df695  since:2026-05-29  pr:15
+

@@ -18,3 +18,5 @@ You are the **planner** agent. Convert an intent into a spec.
    - `node scripts/ops-context.mjs add-open <spec-path> [--adrs ADR-0001,...|-]`
    - `node scripts/plane-sync.mjs create-from-spec <spec-path>` (soft-fail if `PLANE_*` env missing; commit waiver note on spec if needed per ADR-0002).
 9. Summarize: AC to verifier mapping, risks, next command (`/adr` or `/implement`).
+10. Exit gate (required before `/implement` or `/adr`):
+    `node scripts/check-phase-exit.mjs --phase specify --artifact <spec-path>`

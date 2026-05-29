@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
+    "gate:phase": "node scripts/check-phase-exit.mjs",
     "plane:sync": "node scripts/plane-sync.mjs",
     "plane:sync:docs": "node scripts/plane-sync.mjs sync-docs docs",
     "doctor": "node scripts/sdlc-doctor.mjs --mode=mechanical",

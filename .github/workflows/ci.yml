@@ -85,79 +85,52 @@ jobs:
           NEXT_PUBLIC_POSTHOG_HOST: ${{ secrets.NEXT_PUBLIC_POSTHOG_HOST }}
 
   review-gate:
-    # Authoritative platform-layer enforcement of gate.review_approved per ADR-0001.
-    # Reads .sdlc/reviews/PR-<N>.md (the artifact the reviewer agent owns) and
-    # asserts a distinct-identity approval. This replaces GitHub's
-    # require_review_approved, which mis-fired on solo-maintainer setups where
-    # implementer and reviewer agent runs share one GitHub user identity.
-    # See .cursor/rules/branch-discipline.mdc and
-    # .sdlc/sdlc.yaml.integrations.github.branch_strategy.protection.
     if: github.event.pull_request != null
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-      - name: Verify .sdlc/reviews/PR-${{ github.event.pull_request.number }}.md
-        shell: bash
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: gate.review_approved (PR comment, ADR-0007)
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/check-phase-exit.mjs --phase review --pr "$PR_NUMBER"
+
+  verify-gate:
+    if: github.event.pull_request != null
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Resolve spec path from PR body
+        id: spec
+        shell: bash
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
         run: |
           set -euo pipefail
-          file=".sdlc/reviews/PR-${PR_NUMBER}.md"
-          if [ ! -f "$file" ]; then
-            echo "::error file=.sdlc/reviews/::missing $file — the reviewer agent must commit its verdict to this branch before merge (gate.review_approved)"
+          spec=$(printf '%s' "$PR_BODY" | grep -oE 'SPEC-[0-9]+' | head -1 || true)
+          if [ -z "$spec" ]; then
+            echo "::error::PR body must include SPEC-NNNN for verify-gate (hard gate)"
             exit 1
           fi
-
-          # Extract YAML frontmatter: lines after first '---' until second '---'.
-          frontmatter=$(awk 'BEGIN{c=0} /^---[[:space:]]*$/{c++; if (c>=2) exit; next} c==1{print}' "$file")
-          if [ -z "$frontmatter" ]; then
-            echo "::error file=${file}::no YAML frontmatter found"
+          path=$(ls .sdlc/specs/${spec}-*.md 2>/dev/null | head -1 || true)
+          if [ -z "$path" ]; then
+            echo "::error::Spec file not found for ${spec}"
             exit 1
           fi
-
-          assert_kv() {
-            local pattern="$1"
-            local label="$2"
-            if ! printf '%s\n' "$frontmatter" | grep -qE "$pattern"; then
-              echo "::error file=${file}::frontmatter missing or wrong: $label"
-              exit 1
-            fi
-          }
-
-          # verdict: approved   (top-level, exactly that token)
-          assert_kv '^verdict:[[:space:]]+approved[[:space:]]*$' "verdict: approved"
-          # provenance.agent_id: reviewer   (indented under provenance:)
-          assert_kv '^[[:space:]]+agent_id:[[:space:]]+reviewer[[:space:]]*$' "provenance.agent_id: reviewer"
-          # implementer_distinct_from_reviewer: true   (top-level)
-          assert_kv '^implementer_distinct_from_reviewer:[[:space:]]+true[[:space:]]*$' "implementer_distinct_from_reviewer: true"
-          # pr_id matches the PR number (defensive: prevents copy-paste mismatches)
-          assert_kv "^pr_id:[[:space:]]+${PR_NUMBER}[[:space:]]*$" "pr_id: ${PR_NUMBER}"
-
-          # browser_evidence: posted | waived (ADR-0006)
-          be_status=$(printf '%s\n' "$frontmatter" | awk '
-            /^browser_evidence:[[:space:]]*$/ { inbe=1; next }
-            inbe && /^  status:[[:space:]]+/ { sub(/^  status:[[:space:]]+/, ""); print; exit }
-            inbe && /^[^[:space:]]/ { exit }
-          ')
-          if [ -z "$be_status" ]; then
-            echo "::error file=${file}::frontmatter missing browser_evidence.status (posted|waived)"
-            exit 1
-          fi
-          if [ "$be_status" = "posted" ]; then
-            if ! printf '%s\n' "$frontmatter" | grep -qE '^  plane_comment_url:[[:space:]]+https?://'; then
-              echo "::error file=${file}::browser_evidence.status posted requires plane_comment_url"
-              exit 1
-            fi
-          elif [ "$be_status" = "waived" ]; then
-            if ! printf '%s\n' "$frontmatter" | grep -qE '^  waiver_reason:[[:space:]]+.{8,}'; then
-              echo "::error file=${file}::browser_evidence.status waived requires waiver_reason"
-              exit 1
-            fi
-          else
-            echo "::error file=${file}::browser_evidence.status must be posted or waived, got: ${be_status}"
-            exit 1
-          fi
-
-          echo "::notice file=${file}::gate.review_approved: pass (verdict=approved, agent_id=reviewer, distinct=true, pr_id=${PR_NUMBER}, browser_evidence=${be_status})"
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+      - name: gate.verify (Plane comment, ADR-0007)
+        env:
+          PLANE_API_BASE: ${{ secrets.PLANE_API_BASE }}
+          PLANE_API_TOKEN: ${{ secrets.PLANE_API_TOKEN }}
+          PLANE_WORKSPACE_SLUG: ${{ secrets.PLANE_WORKSPACE_SLUG }}
+          PLANE_PROJECT_ID: ${{ secrets.PLANE_PROJECT_ID }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          node scripts/check-phase-exit.mjs --phase verify --spec "${{ steps.spec.outputs.path }}" --head-sha "$HEAD_SHA"
