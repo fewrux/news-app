@@ -20,6 +20,7 @@ import { existsSync } from "node:fs";
 import { basename, join, relative, resolve } from "node:path";
 import { argv, cwd, exit, stderr, stdout } from "node:process";
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(cwd());
 
@@ -983,4 +984,6 @@ async function main() {
   }
 }
 
-main();
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+  main();
+}
