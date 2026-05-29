@@ -36,7 +36,10 @@ Commands:
 - `create-from-intent <path-to-intent.md>` — creates an issue, writes the
   returned id back into the intent's frontmatter `plane_issue` field.
 - `create-from-incident <path-to-incident.md>` — same, with severity label.
-- `create-from-spec <path-to-spec.md>` — creates a spec issue (Todo state), writes `tracker.issues[0]` on the spec.
+- `create-from-spec <path-to-spec.md>` — creates a spec issue (Todo state) with
+  `description_html` (Summary, Behavior, Acceptance criteria, Technical notes),
+  writes `tracker.issues[0]` on the spec.
+- `sync-spec <path-to-spec.md>` — refresh `description_html` on the linked spec issue.
 - `set-status <path-to-spec.md> <todo|in_progress|done|cancelled|blocked>` — PATCH linked issue state.
 - `post-evidence <path-to-spec.md> <report-dir> [--head-sha SHA]` — post browser
   evidence comment (+ video attachment) to the spec's Plane issue (ADR-0006).
@@ -49,7 +52,9 @@ Commands:
   `external_source = "news-app-docs"`. First sync creates; subsequent
   syncs PATCH in place. No state file is needed.
 - `github-event` — used by CI workflows that pass a GitHub webhook
-  payload via `GITHUB_EVENT_PATH`.
+  payload via `GITHUB_EVENT_PATH`. On `pull_request`, posts an idempotent
+  comment on the linked spec issue (`sdlc:pr:v1` marker) instead of creating
+  a separate PR work item.
 
 ## Docs sync — when and how
 
