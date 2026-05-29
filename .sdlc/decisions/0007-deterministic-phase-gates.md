@@ -3,7 +3,7 @@ id: ADR-0007
 title: Deterministic phase-exit gates with external artifact stores (Plane, PR comments, GitHub Releases)
 status: accepted
 date: 2026-05-29
-spec: null
+spec: SPEC-0006
 supersedes_in_part: ADR-0001
 provenance:
   agent_id: architect
@@ -31,6 +31,24 @@ Lifecycle artifacts for verify, review, and release move to their native systems
 - **Release** → GitHub Release body (`sdlc:release:v1` JSON marker)
 
 Intent, spec, and ADR remain in git (inputs to implementation).
+
+# Options
+
+## Option A — Keep git-staged artifacts (status quo extended)
+
+Commit `.sdlc/reviews/` and `.sdlc/reports/`; CI reads files from branch.
+
+- **Pros**: offline clone has full history; no API deps.
+- **Cons**: reviewer must push to PR branch; duplicates Plane/GitHub native UX.
+
+## Option B — External canonical stores + single gate runner (CHOSEN)
+
+Plane / PR comment / GitHub Release hold verify/review/release; `check-phase-exit.mjs`
+validates markers. Hard gates everywhere.
+
+- **Pros**: native tooling UX; phase runner is harness-agnostic; matches maintainer
+  "dura lex" policy.
+- **Cons**: requires Plane + GitHub credentials locally and in CI.
 
 # Decision
 

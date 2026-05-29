@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import { ROOT, fail, parseFrontmatter, readText } from "./common.mjs";
 
 /**
@@ -19,7 +21,8 @@ export async function validateAdr(adrPath, specPath) {
   const md = await readText(abs);
   const { body } = parseFrontmatter(md);
 
-  const options = body.match(/^## Option/mg) ?? [];
+  const options =
+    body.match(/^## Option/mg) ?? body.match(/^### Option/mg) ?? [];
   if (options.length < 2) {
     fail("ADR must list >= 2 alternatives (## Option … headings)");
   }
@@ -32,7 +35,7 @@ export async function validateAdr(adrPath, specPath) {
  * @param {string} specPath
  */
 export async function validateDesignForSpec(specPath) {
-  const specMd = await readFile(resolve(ROOT, specPath), "utf8");
+  const specMd = await readText(specPath);
   const { frontmatter } = parseFrontmatter(specMd);
   if (frontmatter.complexity !== "complex") {
     return "design skipped (complexity not complex)";
