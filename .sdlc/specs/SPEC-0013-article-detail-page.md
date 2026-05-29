@@ -1,7 +1,7 @@
 ---
 id: SPEC-0013
 intent: INT-0012
-status: todo
+status: done
 surface: product
 complexity: normal
 created_at: 2026-05-29T16:58:59Z
