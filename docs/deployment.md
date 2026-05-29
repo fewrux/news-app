@@ -21,7 +21,7 @@ feature branch + PR
         ▼
 .github/workflows/ci.yml          (lint · typecheck · build · e2e)
 .github/workflows/preview.yml     (vercel deploy --target preview)
-.github/workflows/e2e-evidence.yml (record video + trace on retry)
+Cursor /verify + plane-sync post-evidence (video + trace on retry; ADR-0006)
 .github/workflows/plane-sync.yml  (mirror PR to Plane issue)
         │
         ▼

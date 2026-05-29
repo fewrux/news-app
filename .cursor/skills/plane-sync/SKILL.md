@@ -38,6 +38,8 @@ Commands:
 - `create-from-incident <path-to-incident.md>` — same, with severity label.
 - `create-from-spec <path-to-spec.md>` — creates a spec issue (Todo state), writes `tracker.issues[0]` on the spec.
 - `set-status <path-to-spec.md> <todo|in_progress|done|cancelled|blocked>` — PATCH linked issue state.
+- `post-evidence <path-to-spec.md> <report-dir> [--head-sha SHA]` — post browser
+  evidence comment (+ video attachment) to the spec's Plane issue (ADR-0006).
 - `link-spec <path-to-spec.md> <plane-issue-id>` — link an existing issue.
 - `create-from-handoff` — **deprecated** (SPEC-0004); use `create-from-spec`.
 - `close-cycle <release-id>` — close the Plane cycle for a release.

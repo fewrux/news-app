@@ -6,7 +6,7 @@
 > this file is a denormalized index synced on every transition.
 
 last_updated: 2026-05-29
-updated_by: releaser
+updated_by: implementer
 
 ## todo (max 10)
 
@@ -14,5 +14,5 @@ updated_by: releaser
 
 ## in_progress (max 10)
 
-- _none_
+- SPEC-0005 | chore/cursor-e2e-evidence | in_progress
 

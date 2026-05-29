@@ -42,7 +42,7 @@ news-app/
 ├── public/                 Static assets
 ├── scripts/
 │   └── plane-sync.mjs      Plane REST wrapper (issues, pages, github events)
-├── .github/workflows/      CI/CD: ci, preview, deploy-prod, plane-sync, e2e-evidence
+├── .github/workflows/      CI/CD: ci, preview, deploy-prod, plane-sync, doctor
 ├── docs/                   Human-readable documentation (mirrored to Plane)
 ├── .sdlc/                  AI-readable contract + artifacts (durable memory)
 └── .cursor/                Operator surface (agents, commands, skills, rules, hooks)
@@ -104,7 +104,7 @@ push to feature branch
 GitHub Actions (.github/workflows/)
       ├─ ci.yml          lint · typecheck · build · unit/e2e
       ├─ preview.yml     vercel deploy --target preview → URL
-      ├─ e2e-evidence.yml video + trace → uploaded as artefact
+      └─ Cursor /verify → plane-sync post-evidence → Plane issue comment
       └─ plane-sync.yml  mirror PR / issue to Plane
       │
       ▼

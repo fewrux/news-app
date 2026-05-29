@@ -19,10 +19,10 @@ Mechanical enforcement: `.cursor/hooks/guard-shell.mjs`
    - `fix/<spec-slug>` for bug fixes
    - `chore/<slug>` for refactors, deps, docs
    - `hotfix/<incident-id>` for production hotfixes
-3. **Open the PR first, push commits second.** Use `gh pr create --draft`
-   as the first push from a new branch. The PR is the conversation
-   surface for the reviewer agent and the converge point for preview
-   deploy, e2e evidence, and Plane link.
+3. **`/verify` before the draft PR.** Product-surface work: Playwright pass +
+   Plane evidence posted, then `gh pr create --draft`. Operator-surface work:
+   verify waiver report, then open the PR. Never mix product and operator
+   paths in one PR (`node scripts/classify-diff.mjs --strict`).
 4. **No history rewrites on `main`.** No `--amend`, no `rebase -i`, no
    `push --force` against `main` or any branch sourced by a merged PR.
 5. **Promotion to `main` is by squash-merge of an approved PR.** The
@@ -34,9 +34,9 @@ Mechanical enforcement: `.cursor/hooks/guard-shell.mjs`
 Every PR carries:
 
 - A **Plane issue** link (created via `scripts/plane-sync.mjs`).
-- A **Vercel preview URL** (auto-posted by `.github/workflows/preview.yml`).
-- An **e2e video reference** (per
-  [browser-evidence skill](../.cursor/skills/browser-evidence/SKILL.md)).
+- A **Vercel preview URL** (auto-posted when applicable).
+- **Browser evidence:** Plane comment URL on the issue (product surface) or
+  explicit waiver in the reviewer artifact (operator surface).
 - A **review approval** from the reviewer agent identity, which must be
   distinct from the implementer
   (`reviewer.constraints.must_be_distinct_from: implementer`).
@@ -48,7 +48,7 @@ on sight.
 
 `sdlc.yaml.integrations.github.branch_strategy.protection`:
 
-- `require_status_checks: [ci/lint, ci/typecheck, ci/build, ci/e2e]`
+- `require_status_checks: [ci/lint, ci/typecheck, ci/build, ci/review-gate]`
 - `require_review_approved: true` (the reviewer agent provides this)
 - `disallow_force_push_to_main: true`
 

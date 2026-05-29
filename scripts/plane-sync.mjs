@@ -14,14 +14,15 @@
 //   node scripts/plane-sync.mjs link-spec            <path-to-spec.md> <issue-id>
 //   node scripts/plane-sync.mjs close-cycle          <cycle-id>
 //   node scripts/plane-sync.mjs github-event          # reads $GITHUB_EVENT_PATH
+//   node scripts/plane-sync.mjs post-evidence         <spec-path> <report-dir> [--head-sha SHA]
 //
 // Plane-only extras (not part of the adapter contract):
 //   node scripts/plane-sync.mjs sync-docs            [docs-dir]  # mirrors docs/*.md to Plane pages
 //   node scripts/plane-sync.mjs purge-docs           [docs-dir]  # DELETEs every page in the local map (recovery)
 
-import { readFile, writeFile, readdir } from "node:fs/promises";
+import { readFile, writeFile, readdir, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { resolve, join, basename } from "node:path";
 import { argv, env, exit } from "node:process";
 import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
@@ -760,6 +761,193 @@ async function purgeDocs(rootRel = "docs") {
   console.log(`plane-sync: purge-docs done — ${ids.length} ids attempted.`);
 }
 
+async function findFilesRecursive(dir, ext) {
+  const out = [];
+  if (!existsSync(dir)) return out;
+  for (const ent of await readdir(dir, { withFileTypes: true })) {
+    const p = join(dir, ent.name);
+    if (ent.isDirectory()) out.push(...(await findFilesRecursive(p, ext)));
+    else if (ent.name.endsWith(ext)) out.push(p);
+  }
+  return out;
+}
+
+async function uploadIssueAttachment(issueId, filePath) {
+  const st = await stat(filePath);
+  const name = basename(filePath);
+  const type = name.endsWith(".webm") ? "video/webm" : "application/octet-stream";
+  const externalId = `news-app-evidence-${randomBytes(8).toString("hex")}`;
+
+  const paths = [
+    `/issues/${issueId}/issue-attachments/`,
+    `/work-items/${issueId}/attachments/`,
+  ];
+
+  let creds = null;
+  let usedPath = "";
+  for (const p of paths) {
+    try {
+      creds = await planeFetch(p, {
+        method: "POST",
+        body: JSON.stringify({
+          name,
+          type,
+          size: st.size,
+          external_id: externalId,
+          external_source: "news-app-verify",
+        }),
+      });
+      usedPath = p;
+      break;
+    } catch {
+      /* try next path */
+    }
+  }
+  if (!creds) {
+    throw new Error("no Plane attachment endpoint accepted the upload request");
+  }
+
+  const uploadUrl =
+    creds.upload_data?.url ??
+    creds.upload_url ??
+    creds.url ??
+    creds.presigned_url;
+  if (!uploadUrl) {
+    console.warn(
+      `plane-sync: attachment creds from ${usedPath} missing upload URL; comment-only evidence`,
+    );
+    return null;
+  }
+
+  const fileBody = await readFile(filePath);
+  const uploadRes = await fetch(uploadUrl, {
+    method: creds.upload_data?.method ?? "PUT",
+    headers: creds.upload_data?.headers ?? { "Content-Type": type },
+    body: fileBody,
+  });
+  if (!uploadRes.ok) {
+    throw new Error(
+      `attachment upload HTTP ${uploadRes.status}: ${(await uploadRes.text()).slice(0, 200)}`,
+    );
+  }
+  return creds.id ?? creds.attachment_id ?? externalId;
+}
+
+async function postIssueComment(issueId, commentHtml) {
+  const payloads = [
+    { path: `/issues/${issueId}/comments/`, body: { comment_html: commentHtml } },
+    { path: `/issues/${issueId}/comments/`, body: { comment: commentHtml } },
+    {
+      path: `/work-items/${issueId}/comments/`,
+      body: { comment_html: commentHtml, access: "INTERNAL" },
+    },
+  ];
+  for (const { path, body } of payloads) {
+    try {
+      return await planeFetch(path, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+    } catch {
+      /* try next */
+    }
+  }
+  throw new Error("no Plane comment endpoint accepted the request");
+}
+
+async function postEvidence(specPath, reportDir, headSha) {
+  ensureEnv();
+  if (!existsSync(specPath)) {
+    console.error(`plane-sync: spec not found: ${specPath}`);
+    exit(2);
+  }
+  const absReport = resolve(reportDir);
+  if (!existsSync(absReport)) {
+    console.error(`plane-sync: report dir not found: ${absReport}`);
+    exit(2);
+  }
+
+  const md = await readFile(specPath, "utf8");
+  const meta = parseSpecTrackerMeta(md);
+  const issueId = meta.issues[0] ?? parseFrontmatter(md).frontmatter.plane_issue;
+  if (!issueId) {
+    console.error(
+      "plane-sync: spec has no tracker issue — run create-from-spec or link-spec first",
+    );
+    exit(2);
+  }
+
+  let report = {};
+  const reportJson = join(absReport, "report.json");
+  if (existsSync(reportJson)) {
+    report = JSON.parse(await readFile(reportJson, "utf8"));
+  }
+
+  const videoCandidates = [
+    ...(await findFilesRecursive(join(absReport, "videos"), ".webm")),
+    ...(await findFilesRecursive(join(absReport, "test-results"), ".webm")),
+    ...(await findFilesRecursive(absReport, ".webm")),
+  ];
+  const videoPath = videoCandidates[0] ?? null;
+
+  let attachmentNote = "No video file found in report directory.";
+  if (videoPath) {
+    try {
+      const attId = await uploadIssueAttachment(issueId, videoPath);
+      attachmentNote = attId
+        ? `Video attached (${basename(videoPath)}, id ${attId}).`
+        : `Video upload skipped; local file: ${basename(videoPath)}.`;
+    } catch (err) {
+      attachmentNote = `Video upload failed (${err.message}); local file: ${basename(videoPath)}.`;
+      console.warn(`plane-sync: ${attachmentNote}`);
+    }
+  }
+
+  const acRows = (report.acceptance_criteria ?? [])
+    .map(
+      (r) =>
+        `<li><strong>${escapeHtml(r.id ?? "?")}</strong>: ${escapeHtml(r.outcome ?? "?")} — ${escapeHtml(r.verifier ?? "")}</li>`,
+    )
+    .join("");
+
+  const html = `<p><strong>Browser evidence</strong> — verify phase (<code>${escapeHtml(meta.id ?? "spec")}</code>)</p>
+<ul>
+<li>Run: <code>${escapeHtml(basename(absReport))}</code></li>
+<li>Head SHA: <code>${escapeHtml(headSha ?? report.head_sha ?? "n/a")}</code></li>
+<li>${escapeHtml(attachmentNote)}</li>
+</ul>
+${acRows ? `<p>Acceptance criteria:</p><ul>${acRows}</ul>` : ""}
+<p><em>Posted by news-app plane-sync post-evidence (SPEC-0005).</em></p>`;
+
+  const comment = await postIssueComment(issueId, html);
+  const commentId = comment?.id ?? comment?.comment_id ?? "";
+  const planeHost = env.PLANE_API_BASE.replace(/\/+$/, "").replace("api.", "app.");
+  const commentUrl =
+    meta.url ||
+    `${planeHost}/${env.PLANE_WORKSPACE_SLUG}/projects/${env.PLANE_PROJECT_ID}/issues/${issueId}/`;
+
+  const evidenceMeta = {
+    browser_evidence: {
+      status: "posted",
+      plane_issue_id: issueId,
+      plane_comment_id: commentId,
+      plane_comment_url: commentUrl,
+      report_dir: absReport,
+      video: videoPath ? basename(videoPath) : null,
+      posted_at: new Date().toISOString(),
+    },
+  };
+
+  await writeFile(
+    reportJson,
+    JSON.stringify({ ...report, ...evidenceMeta }, null, 2) + "\n",
+  );
+
+  console.log(
+    JSON.stringify({ ok: true, issueId, commentId, commentUrl, ...evidenceMeta }),
+  );
+}
+
 async function fromGithubEvent() {
   ensureEnv();
   const path = env.GITHUB_EVENT_PATH;
@@ -806,13 +994,23 @@ const handlers = {
   "github-event":         ()        => fromGithubEvent(),
   "sync-docs":            ([dir])   => syncDocs(dir ?? "docs"),
   "purge-docs":           ([dir])   => purgeDocs(dir ?? "docs"),
+  "post-evidence":        (args)    => {
+    const headIdx = args.indexOf("--head-sha");
+    const headSha = headIdx >= 0 ? args[headIdx + 1] : undefined;
+    const posArgs = args.filter((a, i) => a !== "--head-sha" && (headIdx < 0 || i !== headIdx + 1));
+    if (posArgs.length < 2) {
+      console.error("Usage: post-evidence <spec-path> <report-dir> [--head-sha SHA]");
+      exit(2);
+    }
+    return postEvidence(posArgs[0], posArgs[1], headSha);
+  },
 };
 
 const handler = handlers[cmd];
 if (!handler) {
   console.error(`Unknown command: ${cmd ?? "<none>"}`);
   console.error(`Available: ${Object.keys(handlers).join(", ")}`);
-  exit(1);
+  exit(cmd ? 1 : 2);
 }
 
 handler(rest).catch((err) => {

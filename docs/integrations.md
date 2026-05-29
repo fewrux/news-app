@@ -9,13 +9,14 @@ Secrets (for CI).
 ## GitHub — version control + CI/CD
 
 - **Workflows** live in `.github/workflows/`:
-  - `ci.yml` — `lint`, `typecheck`, `build`, `e2e`. Runs on PRs and
-    `push.main`. Maps to `gates.{lint,typecheck,build,unit_tests_pass}`.
+  - `ci.yml` — `lint`, `typecheck`, `build`, `review-gate`. Runs on PRs and
+    `push.main`. Maps to `gates.{lint,typecheck,build}`.
   - `preview.yml` — Vercel preview deploy on every PR; URL is posted as
     a PR comment.
   - `deploy-prod.yml` — Vercel production deploy on `push.main`.
   - `plane-sync.yml` — mirrors PRs and GitHub issues into Plane.
-  - `e2e-evidence.yml` — Playwright runs that record video + trace.
+  - Browser evidence: Cursor `/verify` → `plane-sync post-evidence` → Plane
+    issue comment (ADR-0006; not a CI workflow).
   - `docs-sync.yml` — mirrors `docs/*.md` to Plane native pages on
     `push.main` (and via `workflow_dispatch`).
 - **Branch protection** is declared in
@@ -129,7 +130,7 @@ See [observability.md](./observability.md) and the
   on the free tier). Kept only for failures + one smoke per PR.
 - Artifact path: `.sdlc/reports/<run_id>/videos/` and `.../traces/`.
   `.sdlc/reports/` is gitignored.
-- CI workflow: `.github/workflows/e2e-evidence.yml`. Attaches to
+- Verify phase: `plane-sync post-evidence` → Plane issue comment. Attaches to
   `artifact.report` and feeds `phase.review.inputs`.
 
 See [testing.md](./testing.md) and the

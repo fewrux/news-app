@@ -135,4 +135,29 @@ jobs:
           # pr_id matches the PR number (defensive: prevents copy-paste mismatches)
           assert_kv "^pr_id:[[:space:]]+${PR_NUMBER}[[:space:]]*$" "pr_id: ${PR_NUMBER}"
 
-          echo "::notice file=${file}::gate.review_approved: pass (verdict=approved, agent_id=reviewer, distinct=true, pr_id=${PR_NUMBER})"
+          # browser_evidence: posted | waived (ADR-0006)
+          be_status=$(printf '%s\n' "$frontmatter" | awk '
+            /^browser_evidence:[[:space:]]*$/ { inbe=1; next }
+            inbe && /^  status:[[:space:]]+/ { sub(/^  status:[[:space:]]+/, ""); print; exit }
+            inbe && /^[^[:space:]]/ { exit }
+          ')
+          if [ -z "$be_status" ]; then
+            echo "::error file=${file}::frontmatter missing browser_evidence.status (posted|waived)"
+            exit 1
+          fi
+          if [ "$be_status" = "posted" ]; then
+            if ! printf '%s\n' "$frontmatter" | grep -qE '^  plane_comment_url:[[:space:]]+https?://'; then
+              echo "::error file=${file}::browser_evidence.status posted requires plane_comment_url"
+              exit 1
+            fi
+          elif [ "$be_status" = "waived" ]; then
+            if ! printf '%s\n' "$frontmatter" | grep -qE '^  waiver_reason:[[:space:]]+.{8,}'; then
+              echo "::error file=${file}::browser_evidence.status waived requires waiver_reason"
+              exit 1
+            fi
+          else
+            echo "::error file=${file}::browser_evidence.status must be posted or waived, got: ${be_status}"
+            exit 1
+          fi
+
+          echo "::notice file=${file}::gate.review_approved: pass (verdict=approved, agent_id=reviewer, distinct=true, pr_id=${PR_NUMBER}, browser_evidence=${be_status})"
