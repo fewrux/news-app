@@ -46,7 +46,7 @@ export const CHECK_IDS = [
   "struct.tracker-adapter-contract-conformance",
   "artifact.provenance-present",
   "artifact.trace-id-plausible",
-  "artifact.handoff-index-sync",
+  "memory.status-sync",
   "artifact.tracker-provider-known",
   "artifact.legacy-plane-issue",
   "memory.operational-context-cap",
@@ -74,7 +74,6 @@ const ARTIFACT_DIRS = [
   ".sdlc/postmortems",
   ".sdlc/releases",
   ".sdlc/evals/cases",
-  ".sdlc/handoffs",
 ];
 
 const UUID_RE =
@@ -625,54 +624,73 @@ async function runChecks(ctx) {
     }
   }
 
-  const indexPath = join(ROOT, ".sdlc/handoffs/INDEX.md");
-  if (existsSync(indexPath)) {
-    const indexText = await readText(indexPath);
-    const openSection = indexText.match(/## open\s*\n([\s\S]*?)(?=\n## |\n$)/);
-    const openLines = openSection
-      ? openSection[1].match(/^\s*-\s+HANDOFF-\S+/gm) ?? []
-      : [];
-    for (const line of openLines) {
-      const id = line.match(/HANDOFF-\S+/)?.[0];
-      if (!id) continue;
-      const handoffPath = join(ROOT, `.sdlc/handoffs/${id}.md`);
-      if (!existsSync(handoffPath)) {
-        findings.push(
-          finding(
-            "artifact.handoff-index-sync",
-            "fail",
-            "artifact",
-            `INDEX.md open row ${id} has no handoff file`,
-            { path: rel(handoffPath) },
-          ),
-        );
-        continue;
-      }
-      const ht = await readText(handoffPath);
-      const status = ht.match(/^status:\s+(\S+)/m)?.[1];
-      if (status !== "open" && status !== "in_progress") {
-        findings.push(
-          finding(
-            "artifact.handoff-index-sync",
-            "fail",
-            "artifact",
-            `Handoff ${id} in ## open but file status is "${status ?? "missing"}"`,
-            { path: rel(handoffPath) },
-          ),
-        );
+  const specsDir = join(ROOT, ".sdlc/specs");
+  const opCtxForSync = join(ROOT, ".sdlc/memories/operational-context.md");
+  if (existsSync(opCtxForSync) && existsSync(specsDir)) {
+    const opTextSync = await readText(opCtxForSync);
+    const todoMatch = opTextSync.match(/## todo \(max 10\)\s*\n([\s\S]*?)(?=\n## |\n$|$)/);
+    const inProgMatch = opTextSync.match(/## in_progress \(max 10\)\s*\n([\s\S]*?)(?=\n## |\n$|$)/);
+    const todoLines = todoMatch ? (todoMatch[1].match(/^\s*-\s+SPEC-\S+/gm) ?? []) : [];
+    const inProgLines = inProgMatch ? (inProgMatch[1].match(/^\s*-\s+SPEC-\S+/gm) ?? []) : [];
+
+    const parseSpecId = (line) => line.match(/SPEC-\d+/)?.[0] ?? null;
+    const queueMap = new Map();
+    for (const line of todoLines) {
+      const id = parseSpecId(line);
+      if (id) queueMap.set(id, "todo");
+    }
+    for (const line of inProgLines) {
+      const id = parseSpecId(line);
+      if (id) {
+        if (queueMap.has(id)) {
+          findings.push(
+            finding(
+              "memory.status-sync",
+              "fail",
+              "memory hygiene",
+              `Spec ${id} appears in both todo and in_progress sections`,
+              { path: rel(opCtxForSync) },
+            ),
+          );
+        }
+        queueMap.set(id, "in_progress");
       }
     }
-    for (const file of await listMarkdownFiles(join(ROOT, ".sdlc/handoffs"))) {
-      const ht = await readText(file);
-      const status = ht.match(/^status:\s+(\S+)/m)?.[1];
-      const id = ht.match(/^id:\s+(\S+)/m)?.[1] ?? basename(file, ".md");
-      if (status === "open" && !openLines.some((l) => l.includes(id))) {
+
+    for (const file of await listMarkdownFiles(specsDir)) {
+      const st = await readText(file);
+      const status = st.match(/^status:\s+(\S+)/m)?.[1] ?? "";
+      const specId = st.match(/^id:\s+(\S+)/m)?.[1] ?? basename(file).split("-")[0];
+      const queued = queueMap.get(specId);
+      if ((status === "todo" || status === "in_progress") && !queued) {
         findings.push(
           finding(
-            "artifact.handoff-index-sync",
+            "memory.status-sync",
             "fail",
-            "artifact",
-            `Handoff ${id} has status: open but is missing from INDEX.md ## open`,
+            "memory hygiene",
+            `Spec ${specId} has status ${status} but is missing from operational-context queue`,
+            { path: rel(file) },
+          ),
+        );
+      }
+      if (queued && status !== queued) {
+        findings.push(
+          finding(
+            "memory.status-sync",
+            "fail",
+            "memory hygiene",
+            `Spec ${specId} status is ${status || "(missing)"} but operational-context lists it under ${queued}`,
+            { path: rel(file) },
+          ),
+        );
+      }
+      if (["done", "cancelled", "blocked", "draft"].includes(status) && queued) {
+        findings.push(
+          finding(
+            "memory.status-sync",
+            "fail",
+            "memory hygiene",
+            `Spec ${specId} has status ${status} but still appears in operational-context (${queued})`,
             { path: rel(file) },
           ),
         );
@@ -684,10 +702,8 @@ async function runChecks(ctx) {
   if (existsSync(opCtxPath)) {
     const opText = await readText(opCtxPath);
     const caps = [
-      { heading: "## In progress (max 5)", max: 5 },
-      { heading: "## Recently completed (max 5, last 14 days)", max: 5 },
-      { heading: "## Next up (max 3)", max: 3 },
-      { heading: "## Blocked / waiting (max 3)", max: 3 },
+      { heading: "## todo (max 10)", max: 10 },
+      { heading: "## in_progress (max 10)", max: 10 },
     ];
     for (const { heading, max } of caps) {
       const section = opText.match(

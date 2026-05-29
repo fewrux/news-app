@@ -9,7 +9,8 @@
 //
 //   node scripts/plane-sync.mjs create-from-intent   <path-to-intent.md>
 //   node scripts/plane-sync.mjs create-from-incident <path-to-incident.md>
-//   node scripts/plane-sync.mjs create-from-handoff  <path-to-handoff.md>
+//   node scripts/plane-sync.mjs create-from-spec     <path-to-spec.md>
+//   node scripts/plane-sync.mjs set-status           <path-to-spec.md> <todo|in_progress|done|cancelled|blocked>
 //   node scripts/plane-sync.mjs link-spec            <path-to-spec.md> <issue-id>
 //   node scripts/plane-sync.mjs close-cycle          <cycle-id>
 //   node scripts/plane-sync.mjs github-event          # reads $GITHUB_EVENT_PATH
@@ -258,165 +259,139 @@ async function linkSpec(path, issueId) {
   console.log(`plane-sync: linked ${path} to plane issue ${issueId}`);
 }
 
-// --- Handoff support (per SPEC-0001 + ADR-0002 adapter contract) ---------
-//
-// A handoff bundles one intent + one spec + N ADRs into a Plane "module"
-// (Plane's epic equivalent) with one child issue per linked spec. We
-// write the returned module id and issue ids back into the handoff
-// frontmatter's `tracker:` block, which is the vendor-agnostic mirror
-// shape declared in `sdlc.yaml.integrations.tracker.adapter_contract`.
 
-// Resolve an artifact id like "SPEC-0002" to its file under
-// `.sdlc/<kind>/`. Returns the first match by prefix. Returns null when
-// no match exists (the caller decides whether that is acceptable —
-// `create-from-handoff` tolerates a missing spec file because the
-// handoff is still useful as a tracker mirror).
-async function resolveArtifactPath(id, dir) {
-  if (id.includes("/") || id.endsWith(".md")) {
-    return existsSync(id) ? id : null;
+// --- Spec support (per SPEC-0004 + ADR-0005) -----------------------------
+
+const SPEC_STATUS_ALIASES = {
+  todo: ["todo", "backlog"],
+  in_progress: ["in progress", "in_progress", "started"],
+  done: ["done", "completed", "complete"],
+  cancelled: ["cancelled", "canceled"],
+  blocked: ["blocked"],
+};
+
+async function resolveStateId(statusKey) {
+  const aliases = SPEC_STATUS_ALIASES[statusKey];
+  if (!aliases) {
+    throw new Error(`unknown spec status: ${statusKey}`);
   }
-  if (!existsSync(dir)) return null;
-  const entries = await readdir(dir);
-  const hit = entries.find(
-    (name) => name.startsWith(`${id}-`) && name.endsWith(".md"),
-  );
-  return hit ? `${dir}/${hit}` : null;
+  const states = await planeFetch(`/states/?per_page=100`);
+  const list = Array.isArray(states) ? states : (states?.results ?? []);
+  for (const state of list) {
+    const name = String(state.name ?? "").toLowerCase();
+    const group = String(state.group ?? "").toLowerCase();
+    for (const alias of aliases) {
+      const a = alias.toLowerCase();
+      if (name === a || group === a || name.replace(/\s+/g, "_") === a) {
+        return state.id;
+      }
+    }
+  }
+  throw new Error(`Plane state not found for spec status "${statusKey}"`);
 }
 
-// Parse the handoff frontmatter shape declared in
-// `.sdlc/handoffs/_template.md`. parseFrontmatter() handles the
-// single-line keys; `adrs:` is a list, which we regex out.
-function parseHandoffMeta(md) {
+function parseSpecTrackerMeta(md) {
   const { frontmatter } = parseFrontmatter(md);
-  const adrsMatch = md.match(/^adrs:\s*\[(.*?)\]\s*$/m);
-  const adrs = adrsMatch
-    ? adrsMatch[1].split(",").map((s) => s.trim()).filter(Boolean)
+  const providerMatch = md.match(/^tracker:\s*\n(?:[^\n]*\n)*?\s+provider:\s*(.*)$/m);
+  const issuesMatch = md.match(/^tracker:\s*\n(?:[^\n]*\n)*?\s+issues:\s*\[(.*?)\]/m);
+  const urlMatch = md.match(/^tracker:\s*\n(?:[^\n]*\n)*?\s+url:\s*(.*)$/m);
+  const provider = (providerMatch?.[1] ?? "").trim().replace(/^["']|["']$/g, "").split("#")[0].trim();
+  const issuesRaw = issuesMatch?.[1]?.trim() ?? "";
+  const issues = issuesRaw
+    ? issuesRaw.split(",").map((s) => s.trim().replace(/^["']|["']$/g, "")).filter(Boolean)
     : [];
+  const url = (urlMatch?.[1] ?? "").trim().replace(/^["']|["']$/g, "");
   return {
     id: frontmatter.id,
-    slug: frontmatter.slug,
-    intent: frontmatter.intent,
-    spec: frontmatter.spec,
-    adrs,
+    status: frontmatter.status,
+    provider,
+    issues,
+    url,
   };
 }
 
-// Replace the empty placeholders inside the `tracker:` block of a
-// handoff frontmatter. The template ships with `provider: ""`,
-// `epic: ""`, `issues: []`, `url: ""` and inline comments; we replace
-// only the empty placeholders so re-runs don't double-write (a second
-// run finds non-empty values and matches nothing). Comments are
-// preserved.
-async function rewriteTrackerBlock(path, { provider, epic, issues, url }) {
+async function rewriteSpecTrackerBlock(path, { provider, issues, url }) {
   let md = await readFile(path, "utf8");
+  if (!/^tracker:/m.test(md)) {
+    md = md.replace(/^(---\n[\s\S]*?)(\n---\n)/, `$1\ntracker:\n  provider: ""\n  issues: []\n  url: ""$2`);
+  }
   if (provider !== undefined) {
     md = md.replace(
-      /^(\s*)provider:\s*""(\s*#.*)?$/m,
-      `$1provider: ${provider}$2`,
+      /^(\s*)provider:\s*(""|\S*)(\s*#.*)?$/m,
+      `$1provider: ${provider}$3`,
     );
-  }
-  if (epic !== undefined) {
-    md = md.replace(/^(\s*)epic:\s*""(\s*#.*)?$/m, `$1epic: ${epic}$2`);
   }
   if (issues !== undefined) {
     const list = issues.length === 0 ? "[]" : `[${issues.join(", ")}]`;
-    md = md.replace(
-      /^(\s*)issues:\s*\[\s*\](\s*#.*)?$/m,
-      `$1issues: ${list}$2`,
-    );
+    md = md.replace(/^(\s*)issues:\s*\[[^\]]*\](\s*#.*)?$/m, `$1issues: ${list}$2`);
+    if (!/^(\s*)issues:/m.test(md)) {
+      md = md.replace(/^(\s*)provider:.*$/m, `$0\n$1issues: ${list}`);
+    }
   }
   if (url !== undefined) {
-    md = md.replace(/^(\s*)url:\s*""(\s*#.*)?$/m, `$1url: "${url}"$2`);
+    const val = url ? `"${url}"` : '""';
+    md = md.replace(/^(\s*)url:\s*(""|\S*)(\s*#.*)?$/m, `$1url: ${val}$3`);
   }
   await writeFile(path, md);
 }
 
-// Soft-fail waiver (env unset) is handled by the /handoff slash command,
-// not here — the agent owns the frontmatter waiver note + the human
-// summary. This script's contract on env-missing is a clean `exit(2)`
-// so the caller can branch.
-
-async function createModule({ name, description }) {
-  return planeFetch(`/modules/`, {
-    method: "POST",
-    body: JSON.stringify({ name, description }),
-  });
-}
-
-// Best-effort module-issue link. Plane's `/modules/<id>/module-issues/`
-// endpoint accepts a list of issue ids; a failure here leaves the
-// issue created but unattached, which is still useful (the issue
-// carries the `handoff` label and the handoff body links to it).
-async function attachIssuesToModule(moduleId, issueIds) {
-  if (issueIds.length === 0) return;
-  try {
-    await planeFetch(`/modules/${moduleId}/module-issues/`, {
-      method: "POST",
-      body: JSON.stringify({ issues: issueIds }),
-    });
-  } catch (err) {
-    console.warn(
-      `plane-sync: module-issue link failed for module ${moduleId} (${err.message}); issues remain created and labelled`,
-    );
-  }
-}
-
-async function createFromHandoff(path) {
+async function createFromSpec(specPath) {
   ensureEnv();
-  if (!existsSync(path)) {
-    console.error(`plane-sync: handoff not found: ${path}`);
+  if (!existsSync(specPath)) {
+    console.error(`plane-sync: spec not found: ${specPath}`);
     exit(2);
   }
-  const md = await readFile(path, "utf8");
-  const { body } = parseFrontmatter(md);
-  const meta = parseHandoffMeta(md);
-  const title = firstHeading(body);
-
-  // `module` is a reserved name in CommonJS land and ESLint's Next.js
-  // preset rejects it as a variable name; use `epic` (the
-  // adapter-contract term in sdlc.yaml.integrations.tracker).
-  const epic = await createModule({
-    name: `[Handoff] ${title}`,
-    description: body.slice(0, 4000),
-  });
-
-  const issueIds = [];
-  const specIds = [meta.spec].filter(Boolean);
-  for (const specId of specIds) {
-    const specPath = await resolveArtifactPath(specId, ".sdlc/specs");
-    let issueName;
-    let issueDescription;
-    if (specPath) {
-      const specMd = await readFile(specPath, "utf8");
-      const { body: specBody } = parseFrontmatter(specMd);
-      issueName = `[${specId}] ${firstHeading(specBody)}`;
-      issueDescription =
-        `Handoff: ${path}\n` +
-        `Spec:    ${specPath}\n\n` +
-        specBody.slice(0, 3500);
-    } else {
-      issueName = `[${specId}]`;
-      issueDescription = `Handoff: ${path}\nSpec id: ${specId} (file not yet resolved)`;
-    }
-    const issue = await createIssue({
-      name: issueName,
-      description: issueDescription,
-      labels: ["handoff", "ready-for-agent", "spec"],
-    });
-    issueIds.push(issue.id);
+  const md = await readFile(specPath, "utf8");
+  const { frontmatter, body } = parseFrontmatter(md);
+  const meta = parseSpecTrackerMeta(md);
+  if (meta.issues.length > 0) {
+    console.log(`plane-sync: spec already linked to issue ${meta.issues[0]}; skipping create`);
+    return;
   }
-
-  await attachIssuesToModule(epic.id, issueIds);
-
-  await rewriteTrackerBlock(path, {
-    provider: "plane",
-    epic: epic.id,
-    issues: issueIds,
+  const specId = frontmatter.id ?? "SPEC";
+  const todoState = await resolveStateId("todo");
+  const issue = await createIssue({
+    name: `[${specId}] ${firstHeading(body)}`,
+    description: body.slice(0, 4000),
+    labels: ["spec"],
+    state: todoState,
   });
+  const base = env.PLANE_API_BASE.replace(/\/+$/, "");
+  const url = `${base}/${env.PLANE_WORKSPACE_SLUG}/projects/${env.PLANE_PROJECT_ID}/issues/${issue.id}`;
+  await rewriteSpecTrackerBlock(specPath, {
+    provider: "plane",
+    issues: [issue.id],
+    url,
+  });
+  console.log(`plane-sync: created spec issue ${issue.id} (${issue.name})`);
+}
 
-  console.log(
-    `plane-sync: created handoff module ${epic.id} with ${issueIds.length} child issue(s)`,
+async function setStatus(specPath, statusKey) {
+  ensureEnv();
+  if (!existsSync(specPath)) {
+    console.error(`plane-sync: spec not found: ${specPath}`);
+    exit(2);
+  }
+  const md = await readFile(specPath, "utf8");
+  const meta = parseSpecTrackerMeta(md);
+  const issueId = meta.issues[0];
+  if (!issueId) {
+    console.warn(`plane-sync: no tracker issue on ${specPath}; skipping set-status`);
+    return;
+  }
+  const stateId = await resolveStateId(statusKey);
+  await planeFetch(`/issues/${issueId}/`, {
+    method: "PATCH",
+    body: JSON.stringify({ state: stateId }),
+  });
+  console.log(`plane-sync: set issue ${issueId} to ${statusKey}`);
+}
+
+async function createFromHandoffDeprecated() {
+  console.error(
+    "plane-sync: create-from-handoff is deprecated (SPEC-0004). Use create-from-spec <path-to-spec.md> instead.",
   );
+  exit(1);
 }
 
 async function closeCycle(cycleId) {
@@ -823,7 +798,9 @@ const [, , cmd, ...rest] = argv;
 const handlers = {
   "create-from-intent":   ([p])     => createFromIntent(p),
   "create-from-incident": ([p])     => createFromIncident(p),
-  "create-from-handoff":  ([p])     => createFromHandoff(p),
+  "create-from-spec":     ([p])     => createFromSpec(p),
+  "set-status":           ([p, s])  => setStatus(p, s),
+  "create-from-handoff":  ()        => createFromHandoffDeprecated(),
   "link-spec":            ([p, id]) => linkSpec(p, id),
   "close-cycle":          ([id])    => closeCycle(id),
   "github-event":         ()        => fromGithubEvent(),

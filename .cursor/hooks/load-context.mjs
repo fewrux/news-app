@@ -3,9 +3,8 @@
 // Receives JSON on stdin, writes JSON on stdout. No-op if files are missing.
 
 import { existsSync, readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 
-// Order MUST match sdlc.yaml.tooling.cursor.memories.session_reload_order
-// and .cursor/rules/sdlc-loop.mdc "Memories the agent must reload".
 const MEMORIES = [
   { label: "Project memory (invariant facts)",          path: ".sdlc/memories/project.md" },
   { label: "Operational context (in-flight work)",      path: ".sdlc/memories/operational-context.md" },
@@ -16,26 +15,27 @@ const MEMORIES = [
   { label: "Lessons memory (appended by /learn)",       path: ".sdlc/memories/lessons.md" },
 ];
 
-// The `## open` section of `.sdlc/handoffs/INDEX.md` is the cross-session
-// work queue (per SPEC-0001 / ADR-0002). We extract it verbatim — the file
-// is intentionally token-optimised, one handoff per line, so any new
-// session sees the full queue in its banner and can prompt the maintainer
-// for pickup before doing anything else.
-function readOpenHandoffs() {
-  const indexPath = ".sdlc/handoffs/INDEX.md";
-  if (!existsSync(indexPath)) return null;
-  const text = readFileSync(indexPath, "utf8");
-  const start = text.search(/^##\s+open\s*$/m);
-  if (start === -1) return null;
-  const after = text.slice(start);
-  const headingEnd = after.slice(1).search(/^##\s/m);
-  const section = headingEnd === -1 ? after : after.slice(0, headingEnd + 1);
-  const lines = section.split("\n");
-  const entries = lines.filter((l) => /^\s*-\s+HANDOFF-/.test(l));
-  // Slim to the canonical handoff id (first token) only. The intent/spec/
-  // adrs/tracker/created metadata — especially the tracker UUIDs — are pure
-  // noise in a per-session banner; full detail lives in INDEX.md.
-  return entries.map((l) => l.replace(/^\s*-\s+/, "").trim().split(/\s+/)[0]);
+function readQueueSection(heading) {
+  const path = ".sdlc/memories/operational-context.md";
+  if (!existsSync(path)) return [];
+  const text = readFileSync(path, "utf8");
+  const start = text.indexOf(heading);
+  if (start === -1) return [];
+  const after = text.slice(start + heading.length);
+  const next = after.search(/^##\s/m);
+  const body = next === -1 ? after : after.slice(0, next);
+  return body
+    .split("\n")
+    .filter((l) => /^\s*-\s+SPEC-\d+/.test(l))
+    .map((l) => l.replace(/^\s*-\s+/, "").trim().split(/\s+/)[0]);
+}
+
+function listBlockedSpecs() {
+  const r = spawnSync("node", ["scripts/ops-context.mjs", "list-blocked"], {
+    encoding: "utf8",
+  });
+  if (r.status !== 0) return [];
+  return r.stdout.trim().split("\n").filter(Boolean);
 }
 
 let input = "";
@@ -51,30 +51,37 @@ process.stdin.on("end", () => {
       summary.push(`- ${label}: ${path}`);
     }
   }
-  // Static guidance (slash commands, free-tier, autonomy) lives in
-  // always-applied rules + AGENTS.md, not here — per SPEC-0003 this hook
-  // emits only dynamic content. Entry points get one pointer line.
   summary.push(
     "Entry points + memory-reload order: AGENTS.md. Contract: .sdlc/sdlc.yaml."
   );
 
-  // Pending handoffs queue — ids only, read from canonical INDEX.md
-  // (per SPEC-0001 AC-9). Detail stays in the file; this banner only has
-  // to guarantee the agent surfaces the queue on turn one.
-  const openHandoffs = readOpenHandoffs();
+  const todo = readQueueSection("## todo (max 10)");
+  const inProgress = readQueueSection("## in_progress (max 10)");
+  const blocked = listBlockedSpecs();
+
   summary.push("");
-  if (openHandoffs && openHandoffs.length > 0) {
-    summary.push(`OPEN HANDOFFS (${openHandoffs.length}): ${openHandoffs.join(", ")}`);
-    summary.push(
-      "DIRECTIVE (non-optional): your FIRST reply this session MUST begin by listing the open handoff id(s) above and asking the maintainer which to pick up — before addressing anything else, even if their message is about something unrelated. Full detail: .sdlc/handoffs/INDEX.md \u00a7 open. Pickup = `/implement` the linked spec end-to-end per agent-autonomy.mdc."
-    );
+  if (todo.length > 0) {
+    summary.push(`TODO SPECS (${todo.length}): ${todo.join(", ")}`);
   } else {
-    summary.push("Open handoffs: none.");
+    summary.push("Todo specs: none.");
+  }
+  if (inProgress.length > 0) {
+    summary.push(`IN PROGRESS (${inProgress.length}): ${inProgress.join(", ")}`);
+  } else {
+    summary.push("In-progress specs: none.");
+  }
+  if (blocked.length > 0) {
+    summary.push(`BLOCKED SPECS (${blocked.length}): ${blocked.join(", ")}`);
+  }
+
+  const pending = [...todo, ...inProgress];
+  if (pending.length > 0) {
+    summary.push(
+      "DIRECTIVE (non-optional): your FIRST reply this session MUST list the todo/in-progress spec id(s) above and ask the maintainer which to `/implement` — before addressing anything else. Detail: .sdlc/memories/operational-context.md. Pickup = `/implement <spec-path>` end-to-end per agent-autonomy.mdc."
+    );
   }
 
   process.stdout.write(
-    JSON.stringify({
-      additional_context: summary.join("\n"),
-    })
+    JSON.stringify({ additional_context: summary.join("\n") })
   );
 });

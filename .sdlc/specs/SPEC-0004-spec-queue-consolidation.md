@@ -1,7 +1,7 @@
 ---
 id: SPEC-0004
 intent: INT-0005
-status: todo
+status: in_progress
 complexity: complex
 created_at: 2026-05-28T20:05:00Z
 tracker:

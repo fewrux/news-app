@@ -13,7 +13,7 @@ artifact with `common_provenance`.
 to reload (`.sdlc/memories/*`) and the durable index (`.sdlc/INDEX.md`).
 Reload those before acting.
 
-Slash commands map to phases: `/intent` `/spec` `/adr` `/handoff`
+Slash commands map to phases: `/intent` `/spec` `/adr`
 `/implement` `/verify` `/review` `/release` `/incident` `/learn`
 (see `.cursor/commands/`).
 

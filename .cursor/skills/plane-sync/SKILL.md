@@ -36,7 +36,10 @@ Commands:
 - `create-from-intent <path-to-intent.md>` — creates an issue, writes the
   returned id back into the intent's frontmatter `plane_issue` field.
 - `create-from-incident <path-to-incident.md>` — same, with severity label.
+- `create-from-spec <path-to-spec.md>` — creates a spec issue (Todo state), writes `tracker.issues[0]` on the spec.
+- `set-status <path-to-spec.md> <todo|in_progress|done|cancelled|blocked>` — PATCH linked issue state.
 - `link-spec <path-to-spec.md> <plane-issue-id>` — link an existing issue.
+- `create-from-handoff` — **deprecated** (SPEC-0004); use `create-from-spec`.
 - `close-cycle <release-id>` — close the Plane cycle for a release.
 - `sync-docs [docs-dir]` — mirror every `.md` file under the directory
   (defaults to `docs/`) to a Plane native **page**. Idempotent: pages are

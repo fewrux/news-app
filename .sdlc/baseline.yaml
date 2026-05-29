@@ -1,11 +1,10 @@
 ---
 schema_version: "1.0"
-generated_at: "2026-05-29T00:33:26.765Z"
+generated_at: "2026-05-29T12:05:49.401Z"
 commands:
   - /intent
   - /spec
   - /adr
-  - /handoff
   - /implement
   - /verify
   - /review
@@ -50,6 +49,6 @@ workflows:
   - doctor
   - doctor_weekly
 fingerprints:
-  sdlc_yaml: "999729bea8edfb0664f72dcde11dc23f42a898f2f8f1f8c7f3df0d9dbff44a33"
-  always_apply_rules: "2a753d1ca511046d20ef5c1a4bf680ba138cd8e9058bfbefc24680fe2fcb9bfa"
+  sdlc_yaml: "0641db3ff6d5cce1efa23322f9a8454a8604b7e7a9be6fdf27c49c43a643df16"
+  always_apply_rules: "6f1511e733feddea2e41b6aad559028c598784dfacaefa2d4ed4356a1b1f35c5"
 ---
