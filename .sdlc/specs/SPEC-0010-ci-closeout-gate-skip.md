@@ -6,9 +6,9 @@ surface: operator
 complexity: trivial
 created_at: 2026-05-30T00:05:00Z
 tracker:
-  provider: ""
-  issues: []
-  url: ""
+  provider: plane
+  issues: [f3865ca3-ad6d-4cd4-97ad-f9d4bea5ba1f]
+  url: "https://api.plane.so/integritas/projects/c3ef1967-15a0-4177-bfb3-64605e06a779/issues/f3865ca3-ad6d-4cd4-97ad-f9d4bea5ba1f"
 provenance:
   agent_id: planner
   model: claude-sonnet-4-6
