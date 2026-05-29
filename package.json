@@ -12,7 +12,9 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "plane:sync": "node scripts/plane-sync.mjs",
-    "plane:sync:docs": "node scripts/plane-sync.mjs sync-docs docs"
+    "plane:sync:docs": "node scripts/plane-sync.mjs sync-docs docs",
+    "doctor": "node scripts/sdlc-doctor.mjs --mode=mechanical",
+    "doctor:eval": "node scripts/doctor-eval.mjs"
   },
   "dependencies": {
     "next": "16.2.6",

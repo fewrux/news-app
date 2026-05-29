@@ -1,0 +1,16 @@
+{
+  "id": "EVAL-DOCTOR-001",
+  "title": "Doctor flags hooks registry .sh vs .mjs drift",
+  "kind": "regression",
+  "source": { "spec": "SPEC-0002" },
+  "expected_finding_ids": ["struct.hook-registry-matches-config"],
+  "expected_exit_code": 1,
+  "provenance": {
+    "agent_id": "tester",
+    "model": "",
+    "prompt_hash": "",
+    "trace_id": "",
+    "inputs_digest": "",
+    "created_at": "2026-05-28T00:00:00Z"
+  }
+}

@@ -1,0 +1,55 @@
+---
+schema_version: "1.0"
+generated_at: "2026-05-29T00:33:26.765Z"
+commands:
+  - /intent
+  - /spec
+  - /adr
+  - /handoff
+  - /implement
+  - /verify
+  - /review
+  - /release
+  - /incident
+  - /learn
+  - /doctor
+always_apply_rules:
+  - sdlc-loop
+  - free-tier-only
+  - agent-autonomy
+skills:
+  - nextjs-16-doc-check
+  - provenance-stamp
+  - plane-sync
+  - posthog-instrument
+  - browser-evidence
+  - sdlc-doctor
+hooks:
+  sessionStart:
+    - .cursor/hooks/load-context.mjs
+  beforeSubmitPrompt:
+    - .cursor/hooks/scan-secrets.mjs
+  beforeShellExecution:
+    - .cursor/hooks/guard-shell.mjs
+  afterFileEdit:
+    - .cursor/hooks/lint-touch.mjs
+required_memory_files:
+  - .sdlc/memories/project.md
+  - .sdlc/memories/operational-context.md
+  - .sdlc/memories/architecture.md
+  - .sdlc/memories/business-rules.md
+  - .sdlc/memories/glossary.md
+  - .sdlc/memories/incidents.md
+  - .sdlc/memories/lessons.md
+workflows:
+  - ci
+  - preview
+  - deploy_prod
+  - plane_sync
+  - e2e_evidence
+  - doctor
+  - doctor_weekly
+fingerprints:
+  sdlc_yaml: "999729bea8edfb0664f72dcde11dc23f42a898f2f8f1f8c7f3df0d9dbff44a33"
+  always_apply_rules: "2a753d1ca511046d20ef5c1a4bf680ba138cd8e9058bfbefc24680fe2fcb9bfa"
+---

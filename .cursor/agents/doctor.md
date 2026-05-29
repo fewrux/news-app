@@ -15,14 +15,6 @@ the live integrations. The contract declares many invariants; the
 doctor is the continuous reader that surfaces violations where they
 become actionable.
 
-> **Identity card only — behavior implemented next session.** This file
-> exists in SPEC-0001's PR so `sdlc.yaml.roles.agents` references resolve
-> and the agent has a permanent identity. The full procedural body
-> (mechanical script invocation, semantic check pass, report shape, the
-> single `--refresh-baseline` exception) is the deliverable of SPEC-0002,
-> dispatched via the handoff system from the same PR. Until SPEC-0002
-> lands, `/doctor` should refuse to run with a pointer back to the spec.
-
 ## Required context (read before acting)
 
 - `.sdlc/sdlc.yaml` (entire file — the contract is the input)
@@ -49,6 +41,28 @@ until promoted by the future ADR per ADR-0003, Decision 3 / Option 3C.
 - `/doctor --refresh-baseline` — regenerate `.sdlc/baseline.yaml`;
   open `chore/refresh-baseline-<YYYY-MM-DD>` PR with **only** that
   file in the diff.
+
+## Behavior
+
+1. **Mechanical pass** — always run first:
+   `node scripts/sdlc-doctor.mjs --mode=mechanical`. Parse stdout JSON
+   and stderr summary. Exit code `2` → escalate (environment/script error).
+2. **Semantic pass** (skip on `--quick`) — layer findings the script
+   cannot see:
+   - Memory contradictions across `operational-context.md`,
+     `architecture.md`, `project.md`.
+   - Glossary consistency (`memories/glossary.md` vs spec/intent prose).
+   - Recent merged PR shape via `gh pr list --state merged --limit 10`
+     (mechanical layer also runs this when `gh` is available).
+   - Prose-vs-rules consistency: `AGENTS.md` sessionStart paragraph vs
+     `load-context.mjs` banner behavior.
+3. **Report write** (skip on `--quick`) — write
+   `.sdlc/reviews/doctor-<YYYY-MM-DD>.md` with provenance, findings
+   table by category, and one proposed follow-up spec slug per `fail`.
+4. **`--refresh-baseline`** — run
+   `node scripts/sdlc-doctor.mjs --refresh-baseline`, verify
+   `git diff --name-only` is only `.sdlc/baseline.yaml`, then branch
+   `chore/refresh-baseline-<YYYY-MM-DD>`, commit, push, open PR.
 
 ## Outputs
 
