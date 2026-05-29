@@ -1,0 +1,14 @@
+{
+  "schema": "sdlc.verify.v1",
+  "run_id": "verify-example",
+  "spec": "SPEC-0000",
+  "surface": "operator",
+  "head_sha": "abc123",
+  "acceptance_criteria": [
+    { "id": "AC-1", "outcome": "pass", "verifier": "npm run lint" }
+  ],
+  "browser_evidence": {
+    "status": "waived",
+    "waiver_reason": "operator-surface example payload"
+  }
+}

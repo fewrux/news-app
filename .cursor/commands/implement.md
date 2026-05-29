@@ -13,11 +13,9 @@ You are the **implementer** agent.
    under `node_modules/next/dist/docs/`. Cite the doc path you used.
 4. Implement the smallest change that satisfies every acceptance criterion.
    Edit existing files; never duplicate modules.
-5. Run gates locally and report results:
-   - `npm run lint`
-   - `npx tsc --noEmit`
-   - `npm run build`
-6. If any gate fails: fix and re-run, up to `phase.verify.retry_policy.max_attempts`.
+5. Run implement exit gate locally:
+   `node scripts/check-phase-exit.mjs --phase implement`
+6. If gate fails: fix and re-run, up to `phase.verify.retry_policy.max_attempts`.
 7. **Queue transition (before first push):**
    - Set spec frontmatter `status: in_progress`.
    - `node scripts/ops-context.mjs to-in-progress <spec-path> [--pr N]`

@@ -14,7 +14,8 @@
 //   node scripts/plane-sync.mjs link-spec            <path-to-spec.md> <issue-id>
 //   node scripts/plane-sync.mjs close-cycle          <cycle-id>
 //   node scripts/plane-sync.mjs github-event          # reads $GITHUB_EVENT_PATH
-//   node scripts/plane-sync.mjs post-evidence         <spec-path> <report-dir> [--head-sha SHA]
+//   node scripts/plane-sync.mjs post-evidence         <spec-path> --payload <report.json> [--head-sha SHA]
+//   node scripts/plane-sync.mjs post-evidence         <spec-path> <report-dir> [--head-sha SHA]  # legacy: reads report.json from dir
 //
 // Plane-only extras (not part of the adapter contract):
 //   node scripts/plane-sync.mjs sync-docs            [docs-dir]  # mirrors docs/*.md to Plane pages
@@ -22,12 +23,13 @@
 
 import { readFile, writeFile, readdir, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { resolve, join, basename } from "node:path";
+import { resolve, join, basename, dirname } from "node:path";
 import { argv, env, exit } from "node:process";
 import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import { randomBytes } from "node:crypto";
 import { unlink } from "node:fs/promises";
+import { wrapMarkerPayload } from "./gates/common.mjs";
 
 const REQUIRED = [
   "PLANE_API_BASE",
@@ -855,20 +857,17 @@ async function postIssueComment(issueId, commentHtml) {
   throw new Error("no Plane comment endpoint accepted the request");
 }
 
-async function postEvidence(specPath, reportDir, headSha) {
+async function postEvidence(specPath, reportDirOrPayload, headSha, opts = {}) {
   ensureEnv();
   if (!existsSync(specPath)) {
     console.error(`plane-sync: spec not found: ${specPath}`);
     exit(2);
   }
-  const absReport = resolve(reportDir);
-  if (!existsSync(absReport)) {
-    console.error(`plane-sync: report dir not found: ${absReport}`);
-    exit(2);
-  }
 
   const md = await readFile(specPath, "utf8");
   const meta = parseSpecTrackerMeta(md);
+  const fm = parseFrontmatter(md).frontmatter;
+  const surface = fm.surface ?? "operator";
   const issueId = meta.issues[0] ?? parseFrontmatter(md).frontmatter.plane_issue;
   if (!issueId) {
     console.error(
@@ -878,19 +877,33 @@ async function postEvidence(specPath, reportDir, headSha) {
   }
 
   let report = {};
-  const reportJson = join(absReport, "report.json");
-  if (existsSync(reportJson)) {
-    report = JSON.parse(await readFile(reportJson, "utf8"));
+  let absReport = null;
+
+  if (opts.payloadPath) {
+    report = JSON.parse(await readFile(opts.payloadPath, "utf8"));
+    absReport = resolve(dirname(opts.payloadPath));
+  } else if (reportDirOrPayload) {
+    absReport = resolve(reportDirOrPayload);
+    if (!existsSync(absReport)) {
+      console.error(`plane-sync: report dir not found: ${absReport}`);
+      exit(2);
+    }
+    const reportJson = join(absReport, "report.json");
+    if (existsSync(reportJson)) {
+      report = JSON.parse(await readFile(reportJson, "utf8"));
+    }
   }
 
-  const videoCandidates = [
-    ...(await findFilesRecursive(join(absReport, "videos"), ".webm")),
-    ...(await findFilesRecursive(join(absReport, "test-results"), ".webm")),
-    ...(await findFilesRecursive(absReport, ".webm")),
-  ];
+  const videoCandidates = absReport
+    ? [
+        ...(await findFilesRecursive(join(absReport, "videos"), ".webm")),
+        ...(await findFilesRecursive(join(absReport, "test-results"), ".webm")),
+        ...(await findFilesRecursive(absReport, ".webm")),
+      ]
+    : [];
   const videoPath = videoCandidates[0] ?? null;
 
-  let attachmentNote = "No video file found in report directory.";
+  let attachmentNote = "No video file found.";
   if (videoPath) {
     try {
       const attId = await uploadIssueAttachment(issueId, videoPath);
@@ -903,21 +916,54 @@ async function postEvidence(specPath, reportDir, headSha) {
     }
   }
 
-  const acRows = (report.acceptance_criteria ?? [])
+  const acSource = report.acceptance_criteria ?? report.results ?? [];
+  const acceptance_criteria = acSource.map((r) => ({
+    id: r.id ?? r.ac,
+    outcome: r.outcome ?? "pass",
+    verifier: r.verifier ?? "",
+  }));
+
+  const verifyPayload = {
+    schema: "sdlc.verify.v1",
+    run_id: report.run_id ?? basename(absReport ?? "verify"),
+    spec: meta.id ?? fm.id ?? "spec",
+    surface,
+    head_sha: headSha ?? report.head_sha ?? null,
+    acceptance_criteria,
+    browser_evidence: { ...(report.browser_evidence ?? {}) },
+    gates: report.gates ?? {},
+    posted_at: new Date().toISOString(),
+  };
+
+  if (surface === "product") {
+    verifyPayload.browser_evidence.status = "posted";
+  } else if (!verifyPayload.browser_evidence.status) {
+    verifyPayload.browser_evidence = {
+      status: "waived",
+      waiver_reason:
+        verifyPayload.browser_evidence.waiver_reason ??
+        "operator-surface spec — browser evidence waived",
+    };
+  }
+
+  const acRows = acceptance_criteria
     .map(
       (r) =>
         `<li><strong>${escapeHtml(r.id ?? "?")}</strong>: ${escapeHtml(r.outcome ?? "?")} — ${escapeHtml(r.verifier ?? "")}</li>`,
     )
     .join("");
 
-  const html = `<p><strong>Browser evidence</strong> — verify phase (<code>${escapeHtml(meta.id ?? "spec")}</code>)</p>
+  const markerBlock = wrapMarkerPayload("verify", verifyPayload);
+
+  const html = `<p><strong>Verify evidence</strong> — <code>${escapeHtml(meta.id ?? "spec")}</code></p>
 <ul>
-<li>Run: <code>${escapeHtml(basename(absReport))}</code></li>
 <li>Head SHA: <code>${escapeHtml(headSha ?? report.head_sha ?? "n/a")}</code></li>
+<li>Surface: <code>${escapeHtml(surface)}</code></li>
 <li>${escapeHtml(attachmentNote)}</li>
 </ul>
 ${acRows ? `<p>Acceptance criteria:</p><ul>${acRows}</ul>` : ""}
-<p><em>Posted by news-app plane-sync post-evidence (SPEC-0005).</em></p>`;
+${markerBlock}
+<p><em>Posted by news-app plane-sync post-evidence. Canonical verify artifact — gate reads this comment only.</em></p>`;
 
   const comment = await postIssueComment(issueId, html);
   const commentId = comment?.id ?? comment?.comment_id ?? "";
@@ -926,25 +972,22 @@ ${acRows ? `<p>Acceptance criteria:</p><ul>${acRows}</ul>` : ""}
     meta.url ||
     `${planeHost}/${env.PLANE_WORKSPACE_SLUG}/projects/${env.PLANE_PROJECT_ID}/issues/${issueId}/`;
 
-  const evidenceMeta = {
-    browser_evidence: {
-      status: "posted",
-      plane_issue_id: issueId,
-      plane_comment_id: commentId,
-      plane_comment_url: commentUrl,
-      report_dir: absReport,
-      video: videoPath ? basename(videoPath) : null,
-      posted_at: new Date().toISOString(),
-    },
+  verifyPayload.browser_evidence = {
+    ...verifyPayload.browser_evidence,
+    status: surface === "product" ? "posted" : verifyPayload.browser_evidence.status,
+    plane_issue_id: issueId,
+    plane_comment_id: commentId,
+    plane_comment_url: commentUrl,
   };
 
-  await writeFile(
-    reportJson,
-    JSON.stringify({ ...report, ...evidenceMeta }, null, 2) + "\n",
-  );
-
   console.log(
-    JSON.stringify({ ok: true, issueId, commentId, commentUrl, ...evidenceMeta }),
+    JSON.stringify({
+      ok: true,
+      issueId,
+      commentId,
+      commentUrl,
+      verify: verifyPayload,
+    }),
   );
 }
 
@@ -996,10 +1039,29 @@ const handlers = {
   "purge-docs":           ([dir])   => purgeDocs(dir ?? "docs"),
   "post-evidence":        (args)    => {
     const headIdx = args.indexOf("--head-sha");
+    const payloadIdx = args.indexOf("--payload");
     const headSha = headIdx >= 0 ? args[headIdx + 1] : undefined;
-    const posArgs = args.filter((a, i) => a !== "--head-sha" && (headIdx < 0 || i !== headIdx + 1));
+    const payloadPath = payloadIdx >= 0 ? args[payloadIdx + 1] : undefined;
+    const skip = new Set();
+    if (headIdx >= 0) {
+      skip.add(headIdx);
+      skip.add(headIdx + 1);
+    }
+    if (payloadIdx >= 0) {
+      skip.add(payloadIdx);
+      skip.add(payloadIdx + 1);
+    }
+    const posArgs = args.filter((_, i) => !skip.has(i));
+    if (payloadPath) {
+      if (posArgs.length < 1) {
+        console.error("Usage: post-evidence <spec-path> --payload <report.json> [--head-sha SHA]");
+        exit(2);
+      }
+      return postEvidence(posArgs[0], null, headSha, { payloadPath });
+    }
     if (posArgs.length < 2) {
       console.error("Usage: post-evidence <spec-path> <report-dir> [--head-sha SHA]");
+      console.error("       post-evidence <spec-path> --payload <report.json> [--head-sha SHA]");
       exit(2);
     }
     return postEvidence(posArgs[0], posArgs[1], headSha);

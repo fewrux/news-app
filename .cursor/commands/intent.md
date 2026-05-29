@@ -13,6 +13,8 @@ intent. Your job:
      event from `sdlc.yaml.integrations.posthog.events_taxonomy` if possible)
    - `Non-goals`
 4. Stamp the `provenance` block honestly. Leave fields empty if unknown.
-5. Show me the diff and the path. Do not run gates yet — that's `/spec`.
+5. Exit gate (required before `/spec`):
+   `node scripts/check-phase-exit.mjs --phase ideate --artifact .sdlc/intents/INT-NNNN-<slug>.md`
+6. Show the path. On failure: fix template gaps and re-run until pass.
 
 If the intent is ambiguous, ask one clarifying question before writing.

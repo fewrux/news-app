@@ -223,6 +223,7 @@ sdlc:
       owner: releaser
       inputs:  [artifact.code, artifact.review]
       outputs: [artifact.release_note]
+      gates:   [gate.release_note_posted]
       strategy:
         type: progressive
         stages: [canary_5pct, canary_25pct, full]
@@ -318,53 +319,57 @@ sdlc:
   gates:
     intent_clear:
       asserts: "intent has problem, users, and a measurable success_metric"
-      runner: agent.reviewer
+      runner: shell
+      command: "node scripts/check-phase-exit.mjs --phase ideate --artifact"
 
     spec_testable:
       asserts: "every acceptance criterion maps to a test or eval id"
-      runner: agent.reviewer
+      runner: shell
+      command: "node scripts/check-phase-exit.mjs --phase specify --artifact"
 
     spec_scoped:
       asserts: "spec touches < 10 files OR is split into sub-specs"
-      runner: static_check
+      runner: shell
+      command: "node scripts/check-phase-exit.mjs --phase specify --artifact"
 
     spec_single_lane:
       asserts: "spec surface (product|operator) matches all affected_paths — no cross-lane spec"
-      runner: static_check
+      runner: shell
+      command: "node scripts/check-phase-exit.mjs --phase specify --artifact"
 
     no_cross_lane_diff:
-      asserts: "PR diff touches at most one of product_paths or operator_paths"
       runner: shell
       command: "node scripts/classify-diff.mjs --strict"
 
     browser_evidence_on_plane:
       runner: shell
-      command: "node scripts/check-verify-report.mjs"
+      command: "node scripts/check-phase-exit.mjs --phase verify --spec"
       notes: |
-        Product-surface specs: report.json records browser_evidence.status posted
-        with plane_comment_url after plane-sync post-evidence. Operator-surface:
-        status waived with reason.
+        Canonical verify artifact is a Plane issue comment with sdlc:verify:v1 marker.
+        Product-surface: browser_evidence.status posted. Operator-surface: waived + reason.
+        Hard gate — PLANE_* env required locally and in CI (no waivers).
 
     adr_alternatives_considered:
       asserts: "ADR lists >= 2 alternatives with trade-offs"
-      runner: agent.reviewer
+      runner: shell
+      command: "node scripts/check-phase-exit.mjs --phase design --artifact"
 
     spec_tracker_mirrored:
       asserts: "spec at status todo has tracker.issues[0] populated OR explicit waiver note committed"
       runner: shell
-      tolerate_missing: true   # PLANE_* env may be absent in local dev; /spec falls back gracefully
+      command: "node scripts/check-phase-exit.mjs --phase specify --artifact"
 
     lint:        { runner: shell, command: "npm run lint" }
     typecheck:   { runner: shell, command: "npx tsc --noEmit" }
     build:       { runner: shell, command: "npm run build" }
     unit_tests_pass:
       runner: shell
-      command: "npm test --silent"
-      tolerate_missing: true   # repo has no tests yet; the learner will add them
+      command: "npm run test:e2e"
 
     acceptance_criteria_met:
-      runner: agent.tester
-      asserts: "every criterion has a passing assertion or eval"
+      runner: shell
+      command: "node scripts/check-phase-exit.mjs --phase verify --spec"
+      asserts: "Plane verify comment lists every AC with outcome pass"
 
     a11y_baseline:
       runner: shell
@@ -372,15 +377,30 @@ sdlc:
       severity_max: serious
 
     visual_no_unintended_diff:
-      runner: agent.tester
-      asserts: "visual diffs are explained in the spec or rejected"
+      runner: shell
+      command: "node scripts/check-phase-exit.mjs --phase verify --spec"
+      notes: "Visual diffs must be recorded in verify payload or waived in spec risks"
 
     review_approved:
-      runner: agent.reviewer
+      runner: shell
+      command: "node scripts/check-phase-exit.mjs --phase review --pr"
       requires: [no_blockers, conventions_followed, provenance_present]
+      notes: |
+        Canonical review artifact is a PR comment with sdlc:review:v1 marker (ADR-0007).
+        Supersedes committed .sdlc/reviews/PR-N.md from ADR-0001.
 
-    incident_has_owner:    { runner: static_check }
-    postmortem_blameless:  { runner: agent.reviewer }
+    release_note_posted:
+      runner: shell
+      command: "node scripts/check-phase-exit.mjs --phase release --tag"
+      notes: "Canonical release artifact is GitHub Release body with sdlc:release:v1 marker"
+
+    incident_has_owner:
+      runner: agent.reviewer
+      notes: "Operate phase — incident owner gate pending mechanical validator"
+
+    postmortem_blameless:
+      runner: agent.reviewer
+      notes: "Semantic only until postmortem template gate ships"
 
   # ---------------------------------------------------------------------------
   # WORKFLOWS — reusable agent recipes invoked by phases
@@ -605,7 +625,7 @@ sdlc:
           # .sdlc/reviews/PR-<N>.md and replaces GitHub's require_review_approved,
           # which mis-fires on solo-maintainer setups where implementer and
           # reviewer agent runs share one GitHub user identity.
-          require_status_checks: [ci/lint, ci/typecheck, ci/build, ci/review-gate]
+          require_status_checks: [ci/lint, ci/typecheck, ci/build, ci/verify-gate, ci/review-gate]
           require_review_approved: false        # superseded by ci/review-gate per ADR-0001
           disallow_force_push_to_main: true
       actions:

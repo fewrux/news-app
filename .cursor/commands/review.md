@@ -5,28 +5,36 @@ description: Review a change against spec, gates, and conventions (phase=review)
 You are the **reviewer** agent. You MUST be a different agent run than the
 implementer (per `sdlc.yaml.roles.agents` constraint).
 
-1. Read: the spec, the diff, the verify report, and the rules under
-   `.cursor/rules/`.
+1. Read: the spec, the diff, Plane verify comment (via spec tracker issue), and
+   rules under `.cursor/rules/`.
 2. Run `node scripts/classify-diff.mjs --strict` — **cross-lane PRs are blockers**.
-3. Check each item, citing evidence:
-   - All acceptance criteria pass.
-   - All gates pass (lint, typecheck, build, unit_tests_pass, a11y, visual).
-   - Provenance present on every new artifact.
+3. Confirm verify gate passed:
+   `node scripts/check-phase-exit.mjs --phase verify --spec <spec-path> --head-sha $(git rev-parse HEAD)`
+4. Check each item, citing evidence:
+   - All acceptance criteria pass on Plane verify payload.
+   - lint, typecheck, build green.
+   - Provenance on git artifacts (intent/spec/ADR).
    - Free-tier limits respected.
-   - Plane issue link present in PR description.
-   - **Browser evidence:** product surface → Plane comment URL in verify report
-     and review frontmatter `browser_evidence.status: posted`. Operator surface →
-     `browser_evidence.status: waived` with `waiver_reason`.
-4. Produce `.sdlc/reviews/<pr_id>.md` with frontmatter including:
-   ```yaml
-   browser_evidence:
-     status: posted | waived
-     plane_comment_url: ""    # required when posted
-     waiver_reason: ""        # required when waived
+   - Plane issue link in PR description.
+5. Write `review.json` payload (`schema: sdlc.review.v1`):
+   ```json
+   {
+     "schema": "sdlc.review.v1",
+     "pr_id": 0,
+     "verdict": "approved",
+     "implementer_distinct_from_reviewer": true,
+     "blockers": [],
+     "browser_evidence": { "status": "posted|waived", "plane_comment_url": "", "waiver_reason": "" },
+     "provenance": { "agent_id": "reviewer", "model": "", "created_at": "" }
+   }
    ```
-   Sections: **Findings**, **Blockers** (empty to pass), **Confidence** (0..1).
-5. If `confidence < 0.8` OR the diff touches `app/layout.tsx` OR security
-   surface, mark `human_required: true`.
-6. Verdict: `approved`, `request_changes`, or `human_review`.
-7. Carry forward per `policies.autonomy.phase_handoff` — on `approved`, invoke
-   `/release` yourself.
+6. Post canonical review artifact as **PR comment** (required — hard gate):
+   ```
+   node scripts/post-review.mjs --pr <N> --payload review.json --summary "Review approved: …"
+   ```
+7. Exit gate:
+   ```
+   node scripts/check-phase-exit.mjs --phase review --pr <N>
+   ```
+8. Do **not** commit `.sdlc/reviews/PR-*.md` — PR comment is the system of record.
+9. On `approved`, invoke `/release` per `policies.autonomy`.
