@@ -610,6 +610,17 @@ function mdToHtml(md) {
     const line = lines[i];
 
     if (/^\s*$/.test(line)) {
+      // Do not split a list on blank lines between consecutive items.
+      let j = i + 1;
+      while (j < lines.length && /^\s*$/.test(lines[j])) j++;
+      if (listKind === "ul" && j < lines.length && /^\s*[-*+]\s+/.test(lines[j])) {
+        i++;
+        continue;
+      }
+      if (listKind === "ol" && j < lines.length && /^\s*\d+\.\s+/.test(lines[j])) {
+        i++;
+        continue;
+      }
       closeList();
       i++;
       continue;
@@ -726,10 +737,16 @@ function mdToHtml(md) {
 
 /** @param {string} body @param {string} heading */
 function extractSpecSection(body, heading) {
+  const normalized = body.replace(/\r\n/g, "\n");
   const esc = heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const re = new RegExp(`^##\\s+${esc}\\s*\\r?\\n([\\s\\S]*?)(?=^##\\s+|\\Z)`, "im");
-  const m = body.replace(/\r\n/g, "\n").match(re);
-  return m ? m[1].trim() : "";
+  const startRe = new RegExp(`^## ${esc}\\s*\\n`, "m");
+  const startMatch = normalized.match(startRe);
+  if (!startMatch || startMatch.index === undefined) return "";
+  const startIdx = startMatch.index + startMatch[0].length;
+  const rest = normalized.slice(startIdx);
+  const nextHeading = rest.search(/\n## /);
+  const content = nextHeading === -1 ? rest : rest.slice(0, nextHeading);
+  return content.trim();
 }
 
 /** @param {Record<string, string>} fm @param {string} body */
@@ -744,7 +761,7 @@ function buildTechnicalNotesMarkdown(fm, body) {
   const oos = extractSpecSection(body, "Out of scope");
   if (risks) parts.push(`**Risks**\n\n${risks}`);
   if (oos) parts.push(`**Out of scope**\n\n${oos}`);
-  return parts.length ? parts.join("\n\n") : "_None._";
+  return parts.length ? parts.join("\n") : "_None._";
 }
 
 /** @param {Record<string, string>} fm @param {string} body */
