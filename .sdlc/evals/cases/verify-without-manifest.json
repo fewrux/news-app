@@ -1,0 +1,54 @@
+{
+  "id": "EVAL-0001",
+  "title": "Verify gate fails when manifest missing harness_id for product surface",
+  "kind": "regression",
+  "source": {
+    "incident": "",
+    "spec": "SPEC-0015"
+  },
+  "input": {
+    "surface": "product",
+    "manifest": null,
+    "plane_comment": {
+      "schema": "sdlc.verify.v1",
+      "spec": "SPEC-0001",
+      "surface": "product",
+      "head_sha": "abc1234",
+      "acceptance_criteria": [{ "id": "AC-1", "outcome": "pass", "verifier": "test.spec.ts" }],
+      "browser_evidence": {
+        "status": "posted",
+        "plane_comment_url": "https://plane.so/test",
+        "video_attached": true,
+        "plane_attachment_id": "att-001",
+        "video_path": ".sdlc/reports/run001/videos/0-test.webm"
+      },
+      "gates": { "lint": "pass", "typecheck": "pass", "build": "pass" }
+    },
+    "filesystem": {
+      "report_dir_exists": false,
+      "video_count": 0
+    }
+  },
+  "assertions": [
+    {
+      "kind": "gate_outcome",
+      "gate": "verify",
+      "expected": "fail",
+      "reason": "manifest missing — no harness_id means gate cannot confirm run-verify-phase.mjs was used"
+    },
+    {
+      "kind": "gate_outcome",
+      "gate": "verify",
+      "expected": "fail",
+      "reason": "report_dir does not exist on disk — claims cannot be verified against filesystem"
+    }
+  ],
+  "provenance": {
+    "agent_id": "learner",
+    "model": "claude-sonnet-4-6",
+    "prompt_hash": "",
+    "trace_id": "",
+    "inputs_digest": "",
+    "created_at": "2026-06-01T17:31:00Z"
+  }
+}

@@ -24,16 +24,17 @@
 //   node scripts/plane-sync.mjs purge-docs           [docs-dir]  # DELETEs every page in the local map (recovery)
 
 import { readFile, writeFile, readdir, stat } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve, join, basename, dirname } from "node:path";
 import { argv, env, exit } from "node:process";
 import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
-import { randomBytes } from "node:crypto";
+import { randomBytes, createHash } from "node:crypto";
 import { unlink } from "node:fs/promises";
 import { wrapMarkerPayload, extractMarkerPayload, ROOT } from "./gates/common.mjs";
 import { listIssueComments } from "./gates/plane-client.mjs";
 import { loadEnvFiles } from "./load-env.mjs";
+import { resolveManifestPath, stampPhase, readManifest, validateManifest } from "./execution-manifest.mjs";
 
 loadEnvFiles();
 
@@ -1036,6 +1037,70 @@ async function findFilesRecursive(dir, ext) {
   return out;
 }
 
+/**
+ * SHA-256 hash a file, returned as "sha256:<hex>".
+ * @param {string} filePath
+ * @returns {Promise<string>}
+ */
+async function hashFile(filePath) {
+  const buf = await readFile(filePath);
+  return "sha256:" + createHash("sha256").update(buf).digest("hex");
+}
+
+/**
+ * Compute trustless claims for a report directory.
+ * Returns hashes, counts, and paths so the gate can cross-check vs. reality.
+ * @param {string} absReportDir
+ * @param {string[]} videoPaths
+ * @param {number} testCount
+ * @returns {Promise<Record<string, unknown>>}
+ */
+async function computeEvidenceClaims(absReportDir, videoPaths, testCount) {
+  const claims = {
+    report_dir: absReportDir,
+    video_count: videoPaths.length,
+    test_count: testCount,
+    report_hash: null,
+    video_hashes: [],
+  };
+  const reportJson = join(absReportDir, "report.json");
+  if (existsSync(reportJson)) {
+    claims.report_hash = await hashFile(reportJson);
+  }
+  for (const vp of videoPaths) {
+    claims.video_hashes.push(await hashFile(vp));
+  }
+  return claims;
+}
+
+/**
+ * Write claims into the manifest at SDLC_MANIFEST (silent no-op when unset).
+ * @param {Record<string, unknown>} claims
+ * @param {string | null} [attId]
+ */
+function tryStampManifestClaims(claims, attId) {
+  const manifestPath = resolveManifestPath(undefined);
+  if (!manifestPath) return;
+  try {
+    if (!existsSync(manifestPath)) return;
+    const manifest = readManifest(manifestPath);
+    const err = validateManifest(manifest);
+    if (err) return;
+    const verifyEntry = manifest.phases?.verify ?? {};
+    const merged = {
+      ...verifyEntry,
+      claims: {
+        ...(typeof verifyEntry.claims === "object" && verifyEntry.claims !== null ? verifyEntry.claims : {}),
+        ...claims,
+        ...(attId ? { plane_attachment_id: attId } : {}),
+      },
+    };
+    stampPhase(manifestPath, "verify", merged);
+  } catch {
+    // Non-fatal: must not block evidence posting.
+  }
+}
+
 async function uploadIssueAttachment(issueId, filePath) {
   const st = await stat(filePath);
   const name = basename(filePath);
@@ -1182,6 +1247,12 @@ async function postEvidence(specPath, reportDirOrPayload, headSha, opts = {}) {
     exit(1);
   }
 
+  const acSource0 = report.acceptance_criteria ?? report.results ?? [];
+  const testCount = Array.isArray(acSource0) ? acSource0.length : 0;
+  const evidenceClaims = absReport
+    ? await computeEvidenceClaims(absReport, videoCandidates.filter(Boolean), testCount)
+    : { report_dir: null, video_count: 0, test_count: testCount, report_hash: null, video_hashes: [] };
+
   let attachmentNote = surface === "operator" ? "Browser evidence waived (operator surface)." : "No video file found.";
   let attId = null;
   if (videoPath) {
@@ -1196,12 +1267,18 @@ async function postEvidence(specPath, reportDirOrPayload, headSha, opts = {}) {
     }
   }
 
+  tryStampManifestClaims(evidenceClaims, attId);
+
   const acSource = report.acceptance_criteria ?? report.results ?? [];
   const acceptance_criteria = acSource.map((r) => ({
     id: r.id ?? r.ac,
     outcome: r.outcome ?? "pass",
     verifier: r.verifier ?? "",
   }));
+
+  const claimsHash = evidenceClaims
+    ? "sha256:" + createHash("sha256").update(JSON.stringify(evidenceClaims)).digest("hex")
+    : null;
 
   const verifyPayload = {
     schema: "sdlc.verify.v1",
@@ -1213,6 +1290,7 @@ async function postEvidence(specPath, reportDirOrPayload, headSha, opts = {}) {
     browser_evidence: { ...(report.browser_evidence ?? {}) },
     gates: report.gates ?? {},
     posted_at: new Date().toISOString(),
+    ...(claimsHash ? { claims_hash: claimsHash } : {}),
   };
 
   if (surface === "product") {

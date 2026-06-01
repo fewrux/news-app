@@ -1,12 +1,14 @@
 # Testing
 
 End-to-end tests are the **primary behavioral evidence** for **product-surface**
-changes. Per ADR-0006, ADR-0008, and the
+changes. Per ADR-0006, ADR-0008, ADR-0009, and the
 [`browser-evidence` skill](../.cursor/skills/browser-evidence/SKILL.md):
 
 > Product-surface PRs carry browser evidence on the **Plane issue** (posted
 > during `/verify` before the draft PR opens). **Video is mandatory on the first
 > verify pass** — not retry-only. Operator-surface PRs record an explicit waiver.
+> Product verify **must use `run-verify-phase.mjs`** — bare `check-phase-exit`
+> calls without a manifest fail the gate.
 
 ## Stack
 
@@ -50,22 +52,73 @@ node scripts/plane-sync.mjs post-evidence .sdlc/specs/SPEC-XXXX.md ".sdlc/report
 node scripts/check-phase-exit.mjs --phase verify --spec .sdlc/specs/SPEC-XXXX.md --head-sha $(git rev-parse HEAD)
 ```
 
-Or: `node scripts/run-verify-phase.mjs --spec .sdlc/specs/SPEC-XXXX.md`
+**Preferred (only legal path for product):**
+
+```bash
+node scripts/run-verify-phase.mjs --spec .sdlc/specs/SPEC-XXXX.md
+```
+
+This script creates an execution manifest at `.sdlc/runs/{execution_id}.json`,
+sets `SDLC_MANIFEST` for subsequent gate calls, stamps `harness_id: run-verify-phase.mjs`,
+and runs the full loop: e2e → collect → post-evidence → check-phase-exit.
 
 Set `PLANE_*` in `.env` (`.env.local` overrides). Product surface cannot use
 bare `post-evidence --payload` without a report dir containing video.
+
+## Execution manifest (ADR-0009)
+
+Every spec run creates a machine-written manifest at `.sdlc/runs/{execution_id}.json`
+(gitignored — Plane comment is the system of record for remote visibility).
+
+```jsonc
+{
+  "schema": "sdlc.execution.v1",
+  "execution_id": "exec-SPEC-0015-abc12345-20260601T173100Z",
+  "spec_id": "SPEC-0015",
+  "head_sha": "abc12345...",
+  "phases": {
+    "verify": {
+      "harness_id": "run-verify-phase.mjs",   // required for product
+      "run_id": "20260601T173100Z",
+      "report_dir": "/abs/path/.sdlc/reports/...",
+      "claims": {
+        "video_count": 1,
+        "report_hash": "sha256:...",
+        "video_hashes": ["sha256:..."],
+        "plane_attachment_id": "att-..."
+      }
+    }
+  }
+}
+```
+
+The gate cross-checks `claims.report_dir` exists on disk and `claims.video_count >= 1`
+**before** accepting the Plane comment as valid evidence. This prevents forged or
+replayed Plane comments from satisfying the gate.
+
+Initialize manually:
+
+```bash
+node scripts/execution-manifest.mjs init --spec SPEC-0015 --head-sha $(git rev-parse HEAD)
+```
 
 ## Verify-phase gates
 
 | Gate | Runner | What it asserts |
 |------|--------|-----------------|
 | `no_cross_lane_diff` | shell | `classify-diff --strict` |
-| `browser_evidence_on_plane` | shell | Plane marker + product `video_attached` |
+| `browser_evidence_on_plane` | shell | Plane marker + product `video_attached` + manifest claims |
 | `acceptance_criteria_met` | agent.tester | every criterion passes |
 | `a11y_baseline` | shell | axe on product surface only |
 
-`.sdlc/reports/` is **not versioned** — working directory only. Durable
-evidence lives on the Plane issue comment.
+For **product surface**, `gate.browser_evidence_on_plane` also checks:
+- manifest exists at `SDLC_MANIFEST` (set by `run-verify-phase.mjs`)
+- `phases.verify.harness_id === "run-verify-phase.mjs"`
+- `phases.verify.claims.report_dir` exists on disk
+- `phases.verify.claims.video_count >= 1`
+
+`.sdlc/reports/` and `.sdlc/runs/` are **not versioned** — working directory only.
+Durable evidence lives on the Plane issue comment.
 
 ## Determinism
 

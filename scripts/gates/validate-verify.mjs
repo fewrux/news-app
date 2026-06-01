@@ -1,3 +1,6 @@
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
+import { env } from "node:process";
 import {
   fail,
   extractMarkerPayload,
@@ -5,8 +8,10 @@ import {
   parseFrontmatter,
   parseNestedBlock,
   readText,
+  ROOT,
 } from "./common.mjs";
 import { listIssueComments } from "./plane-client.mjs";
+import { resolveManifestPath, readManifest, validateManifest } from "../execution-manifest.mjs";
 
 /**
  * @param {unknown} payload
@@ -57,10 +62,51 @@ function validateVerifyPayload(payload, surface, headSha) {
 }
 
 /**
+ * Trustless filesystem checks — bind claims to real disk state.
+ * Called for product surface only; silently skipped when no manifest.
+ * @param {import("../execution-manifest.mjs").Manifest} manifest
+ * @param {string} surface
+ */
+function validateManifestClaims(manifest, surface) {
+  if (surface !== "product") return;
+
+  const verifyEntry = manifest.phases?.verify;
+  if (!verifyEntry) {
+    fail(
+      "product verify requires an execution manifest with phases.verify — run node scripts/run-verify-phase.mjs",
+    );
+  }
+
+  if (verifyEntry.harness_id !== "run-verify-phase.mjs") {
+    fail(
+      `product verify requires phases.verify.harness_id === "run-verify-phase.mjs", got ${verifyEntry.harness_id ?? "(missing)"}`,
+    );
+  }
+
+  const claims = /** @type {Record<string, unknown>} */ (verifyEntry.claims ?? {});
+
+  const reportDir = /** @type {string | undefined} */ (claims.report_dir);
+  if (reportDir) {
+    const abs = resolve(reportDir);
+    if (!existsSync(abs)) {
+      fail(`product verify: manifest claims.report_dir does not exist on disk: ${abs}`);
+    }
+  } else {
+    fail("product verify: manifest claims.report_dir missing — evidence not collected");
+  }
+
+  const videoCount = /** @type {number} */ (claims.video_count ?? 0);
+  if (videoCount < 1) {
+    fail(`product verify: manifest claims.video_count must be >= 1, got ${videoCount}`);
+  }
+}
+
+/**
  * @param {string} specPath
  * @param {string | undefined} headSha
+ * @param {string | undefined} executionId
  */
-export async function validateVerify(specPath, headSha) {
+export async function validateVerify(specPath, headSha, executionId) {
   const md = await readText(specPath);
   const { frontmatter } = parseFrontmatter(md);
   const tracker = parseNestedBlock(md, "tracker");
@@ -77,7 +123,6 @@ export async function validateVerify(specPath, headSha) {
 
   let payload = null;
   if (headSha) {
-    // Plane lists comments newest-first; take the first matching head_sha.
     for (let i = 0; i < bodies.length; i++) {
       const p = extractMarkerPayload(bodies[i], "verify");
       if (p && typeof p === "object" && /** @type {{head_sha?: string}} */ (p).head_sha === headSha) {
@@ -92,6 +137,21 @@ export async function validateVerify(specPath, headSha) {
   }
 
   validateVerifyPayload(payload, surface, headSha);
+
+  // Trustless check: bind Plane claims to local filesystem via manifest.
+  const manifestPath = resolveManifestPath(executionId);
+  if (surface === "product") {
+    if (!manifestPath || !existsSync(manifestPath)) {
+      fail(
+        "product verify requires an execution manifest at SDLC_MANIFEST or --execution-id — run node scripts/run-verify-phase.mjs",
+      );
+    }
+    const manifest = readManifest(manifestPath);
+    const manifestErr = validateManifest(manifest);
+    if (manifestErr) fail(`manifest invalid: ${manifestErr}`);
+    validateManifestClaims(manifest, surface);
+  }
+
   return `Plane issue ${issueId} has valid verify payload (${surface})`;
 }
 

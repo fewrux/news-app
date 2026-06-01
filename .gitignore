@@ -45,5 +45,7 @@ next-env.d.ts
 # SDLC: ignore generated run artifacts but keep the directory
 /.sdlc/reports/*
 !/.sdlc/reports/.gitkeep
+# SDLC: execution manifests are gitignored — Plane comment is system of record
+/.sdlc/runs/
 .vercel
 .env*
