@@ -12,6 +12,9 @@ import { fileURLToPath } from "node:url";
 import { argv, env, exit } from "node:process";
 import { wrapMarkerPayload } from "./gates/common.mjs";
 import { validateRelease } from "./gates/validate-release.mjs";
+import { loadEnvFiles } from "./load-env.mjs";
+
+loadEnvFiles();
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PLANE_REQUIRED = [
@@ -73,7 +76,17 @@ async function main() {
 
   const marker = wrapMarkerPayload("release", payload);
   const summary = payload.summary ?? `# Release ${normalized}`;
-  const body = `${summary}\n\n${marker}`;
+  const specIds = Array.isArray(payload.spec_ids) ? payload.spec_ids.join(", ") : "n/a";
+  const body = `${summary}
+
+| Field | Value |
+|-------|-------|
+| Version | ${normalized} |
+| Specs | ${specIds} |
+| Head SHA | ${payload.head_sha ?? "main"} |
+| PR | ${payload.pr_url ?? "n/a"} |
+
+${marker}`;
 
   const repo =
     env.GITHUB_REPOSITORY ||

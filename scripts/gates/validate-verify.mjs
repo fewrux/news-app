@@ -30,11 +30,17 @@ function validateVerifyPayload(payload, surface, headSha) {
     if (row.outcome !== "pass") fail(`verify AC ${id} outcome must be pass, got ${row.outcome}`);
   }
 
-  const be = /** @type {Record<string, string>} */ (p.browser_evidence ?? {});
+  const be = /** @type {Record<string, unknown>} */ (p.browser_evidence ?? {});
   if (surface === "product") {
     if (be.status !== "posted") fail("product verify requires browser_evidence.status posted on Plane");
     if (!be.plane_comment_url && !be.plane_comment_id) {
       fail("product verify requires plane comment reference in browser_evidence");
+    }
+    if (be.video_attached !== true) {
+      fail("product verify requires browser_evidence.video_attached === true");
+    }
+    if (!be.plane_attachment_id && !be.video_path) {
+      fail("product verify requires plane_attachment_id or video_path in browser_evidence");
     }
   } else {
     if (be.status !== "waived") fail("operator verify requires browser_evidence.status waived");

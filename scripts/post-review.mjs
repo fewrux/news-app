@@ -35,7 +35,17 @@ async function main() {
 
   validateReviewPayload(payload, pr);
 
+  const be = /** @type {Record<string, string>} */ (payload.browser_evidence ?? {});
+  const blockers = /** @type {unknown[]} */ (payload.blockers ?? []);
+
   const body = `${summary}
+
+| Field | Value |
+|-------|-------|
+| Verdict | **${payload.verdict}** |
+| PR | #${pr} |
+| Browser evidence | ${be.status ?? "n/a"}${be.waiver_reason ? ` — ${be.waiver_reason}` : ""} |
+| Blockers | ${blockers.length === 0 ? "none" : blockers.length} |
 
 ${wrapMarkerPayload("review", payload)}
 

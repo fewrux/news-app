@@ -16,7 +16,8 @@ Secrets (for CI).
   - `deploy-prod.yml` — Vercel production deploy on `push.main`.
   - `plane-sync.yml` — mirrors PRs and GitHub issues into Plane.
   - Browser evidence: Cursor `/verify` → `plane-sync post-evidence` → Plane
-    issue comment (ADR-0006; not a CI workflow).
+    issue comment + video attachment for product (ADR-0006, ADR-0008; not a CI
+    workflow). `PLANE_*` in `.env` / `.env.local`.
   - `docs-sync.yml` — mirrors `docs/*.md` to Plane native pages on
     `push.main` (and via `workflow_dispatch`).
 - **Branch protection** is declared in
