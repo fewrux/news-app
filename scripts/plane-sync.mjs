@@ -24,7 +24,7 @@
 //   node scripts/plane-sync.mjs purge-docs           [docs-dir]  # DELETEs every page in the local map (recovery)
 
 import { readFile, writeFile, readdir, stat } from "node:fs/promises";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { resolve, join, basename, dirname } from "node:path";
 import { argv, env, exit } from "node:process";
 import { spawn } from "node:child_process";

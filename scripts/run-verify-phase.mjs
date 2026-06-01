@@ -16,9 +16,6 @@ import { ROOT, parseFrontmatter } from "./gates/common.mjs";
 import {
   initManifest,
   stampPhase,
-  resolveManifestPath,
-  readManifest,
-  RUNS_DIR,
 } from "./execution-manifest.mjs";
 
 loadEnvFiles();
@@ -34,6 +31,7 @@ function run(cmd, args, opts = {}) {
     cwd: ROOT,
     stdio: opts.inherit ? "inherit" : "pipe",
     env: process.env,
+    shell: process.platform === "win32",
   });
   return r;
 }

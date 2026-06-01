@@ -1,6 +1,5 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { env } from "node:process";
 import {
   fail,
   extractMarkerPayload,
@@ -8,7 +7,6 @@ import {
   parseFrontmatter,
   parseNestedBlock,
   readText,
-  ROOT,
 } from "./common.mjs";
 import { listIssueComments } from "./plane-client.mjs";
 import { resolveManifestPath, readManifest, validateManifest } from "../execution-manifest.mjs";

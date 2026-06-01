@@ -21,7 +21,7 @@ import { validateRelease } from "./gates/validate-release.mjs";
 import { fail, pass } from "./gates/common.mjs";
 import { resolveManifestPath, stampPhase, readManifest, validateManifest } from "./execution-manifest.mjs";
 import { existsSync } from "node:fs";
-import { argv, exit, env } from "node:process";
+import { argv, exit } from "node:process";
 
 function arg(name) {
   const i = argv.indexOf(name);
