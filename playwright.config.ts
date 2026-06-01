@@ -1,7 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
 
 // Free-tier-aware defaults:
-// - video and trace only on first retry to keep storage modest
+// - dev: video/trace on-first-retry to keep storage modest
+// - verify (SDLC_VERIFY=1): always record — see playwright.verify.config.ts / ADR-0008
+const verifyMode = process.env.SDLC_VERIFY === "1";
 // - one retry on CI so flakes still produce evidence
 // - chromium-only on CI by default (override with --project=firefox|webkit)
 export default defineConfig({
@@ -16,8 +18,8 @@ export default defineConfig({
 
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000",
-    video: "on-first-retry",
-    trace: "on-first-retry",
+    video: verifyMode ? "on" : "on-first-retry",
+    trace: verifyMode ? "on" : "on-first-retry",
     screenshot: "only-on-failure",
   },
 

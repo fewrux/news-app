@@ -14,4 +14,4 @@
 | **Gate**        | An automated check a phase must pass before exiting.                       |
 | **Provenance**  | The frontmatter block that ties an artifact to the run that produced it.   |
 | **Free tier**   | The cost ceiling: $0/month across every service. Never assume paid plans.  |
-| **Evidence**    | Browser video + Playwright trace produced by `verify`, consumed by `review`. |
+| **Evidence**    | Browser video (mandatory first-pass for product, ADR-0008) + Playwright trace from `verify`, consumed by `review`. |

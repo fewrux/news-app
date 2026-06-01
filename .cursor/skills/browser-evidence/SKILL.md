@@ -7,15 +7,20 @@ description: Runs Playwright e2e tests with video and trace evidence for the ver
 
 Browser verification runs in **Cursor during `/verify`**, not in CI (ADR-0006).
 Evidence is posted to the **Plane issue** linked on the spec.
+Product video is **mandatory on first pass** (ADR-0008).
 
-Configuration: `playwright.config.ts` and `sdlc.yaml.integrations.browser_evidence`.
+Configuration: `playwright.verify.config.ts`, `playwright.config.ts`, and
+`sdlc.yaml.integrations.browser_evidence`.
 
 ## When evidence is required
 
 | Spec `surface` | Playwright | Plane comment |
 |----------------|------------|---------------|
-| `product`      | Required before draft PR | Required (video + summary) |
+| `product`      | Required before draft PR — video on every verify run | Required (video + summary + `video_attached: true`) |
 | `operator`     | Waived     | Waived (explicit in report) |
+
+Policy docs (`sdlc.yaml`, `business-rules.md`, `docs/testing.md`) are operator
+lane — editing them does not require video.
 
 Cross-lane PRs (product + operator paths) are **blocked** — split into two PRs.
 
@@ -23,30 +28,32 @@ Cross-lane PRs (product + operator paths) are **blocked** — split into two PRs
 
 ```bash
 npx playwright install          # first run only
-npx playwright test             # all browsers, headless
-npx playwright test --project=chromium
-npx playwright show-report
+npm run test:e2e:verify         # verify config — video on first pass
+npm run test:e2e                # dev default — on-first-retry only
+npm run test:e2e:ui             # Playwright UI mode for debugging
 ```
 
-## Post to Plane
-
-After tests pass:
+## Collect and post to Plane
 
 ```bash
 run_id=$(date -u +%Y%m%dT%H%M%SZ)
-mkdir -p ".sdlc/reports/${run_id}"
-# copy test-results + playwright-report into report dir; write report.json
+npm run test:e2e:verify
+node scripts/collect-verify-evidence.mjs --run-id "$run_id" --surface product
+# write report.json under .sdlc/reports/${run_id}/
 node scripts/plane-sync.mjs post-evidence .sdlc/specs/SPEC-XXXX.md ".sdlc/reports/${run_id}" --head-sha $(git rev-parse HEAD)
-node scripts/check-verify-report.mjs --spec .sdlc/specs/SPEC-XXXX.md --report ".sdlc/reports/${run_id}"
+node scripts/check-phase-exit.mjs --phase verify --spec .sdlc/specs/SPEC-XXXX.md --head-sha $(git rev-parse HEAD)
 ```
 
-Open the draft PR **only after** `check-verify-report` passes.
+Mechanical loop: `node scripts/run-verify-phase.mjs --spec .sdlc/specs/SPEC-XXXX.md`
 
-## Capture rules (free-tier-friendly)
+Open the draft PR **only after** verify gate passes.
 
-- `video: "on-first-retry"` — smoke test retries once to guarantee one video.
-- `trace: "on-first-retry"`.
+## Capture rules (ADR-0008)
+
+- **Verify:** `video: "on"` via `playwright.verify.config.ts` or `SDLC_VERIFY=1`.
+- **Dev:** `video: "on-first-retry"` in `playwright.config.ts` to keep storage modest.
 - Durable store: Plane issue comment + attachment (not GHA artifacts).
+- Gate requires `browser_evidence.video_attached === true` for product.
 
 ## Authoring rules
 
@@ -56,5 +63,5 @@ Open the draft PR **only after** `check-verify-report` passes.
 
 ## Reviewer checklist
 
-- Product PR: `browser_evidence.status: posted` + Plane URL in review frontmatter.
+- Product PR: `browser_evidence.status: posted`, `video_attached: true`, Plane URL.
 - Operator PR: `browser_evidence.status: waived` + reason.

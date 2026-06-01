@@ -14,8 +14,8 @@
 //   node scripts/plane-sync.mjs link-spec            <path-to-spec.md> <issue-id>
 //   node scripts/plane-sync.mjs close-cycle          <cycle-id>
 //   node scripts/plane-sync.mjs github-event          # reads $GITHUB_EVENT_PATH
-//   node scripts/plane-sync.mjs post-evidence         <spec-path> --payload <report.json> [--head-sha SHA]
-//   node scripts/plane-sync.mjs post-evidence         <spec-path> <report-dir> [--head-sha SHA]  # legacy: reads report.json from dir
+//   node scripts/plane-sync.mjs post-evidence         <spec-path> <report-dir> [--head-sha SHA]  # preferred; required for product video
+//   node scripts/plane-sync.mjs post-evidence         <spec-path> --payload <report.json> [--head-sha SHA]  # operator only; deprecated for product
 //
 //   node scripts/plane-sync.mjs sync-spec            <path-to-spec.md>
 //   node scripts/plane-sync.mjs sync-all-specs       # all linked specs (description + status)
@@ -31,8 +31,11 @@ import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import { randomBytes } from "node:crypto";
 import { unlink } from "node:fs/promises";
-import { wrapMarkerPayload, extractMarkerPayload } from "./gates/common.mjs";
+import { wrapMarkerPayload, extractMarkerPayload, ROOT } from "./gates/common.mjs";
 import { listIssueComments } from "./gates/plane-client.mjs";
+import { loadEnvFiles } from "./load-env.mjs";
+
+loadEnvFiles();
 
 const REQUIRED = [
   "PLANE_API_BASE",
@@ -1139,6 +1142,12 @@ async function postEvidence(specPath, reportDirOrPayload, headSha, opts = {}) {
   let absReport = null;
 
   if (opts.payloadPath) {
+    if (surface === "product") {
+      console.error(
+        "plane-sync: post-evidence --payload is deprecated for product surface — use a report dir with videos/ (run collect-verify-evidence.mjs after test:e2e:verify)",
+      );
+      exit(2);
+    }
     report = JSON.parse(await readFile(opts.payloadPath, "utf8"));
     absReport = resolve(dirname(opts.payloadPath));
   } else if (reportDirOrPayload) {
@@ -1153,19 +1162,31 @@ async function postEvidence(specPath, reportDirOrPayload, headSha, opts = {}) {
     }
   }
 
-  const videoCandidates = absReport
-    ? [
-        ...(await findFilesRecursive(join(absReport, "videos"), ".webm")),
-        ...(await findFilesRecursive(join(absReport, "test-results"), ".webm")),
-        ...(await findFilesRecursive(absReport, ".webm")),
-      ]
-    : [];
+  const repoTestResults = resolve(ROOT, "test-results");
+  const videoCandidates = [
+    ...(absReport
+      ? [
+          ...(await findFilesRecursive(join(absReport, "videos"), ".webm")),
+          ...(await findFilesRecursive(join(absReport, "test-results"), ".webm")),
+          ...(await findFilesRecursive(absReport, ".webm")),
+        ]
+      : []),
+    ...(await findFilesRecursive(repoTestResults, ".webm")),
+  ];
   const videoPath = videoCandidates[0] ?? null;
 
-  let attachmentNote = "No video file found.";
+  if (surface === "product" && !videoPath) {
+    console.error(
+      "plane-sync: product surface requires a .webm video — run npm run test:e2e:verify then node scripts/collect-verify-evidence.mjs",
+    );
+    exit(1);
+  }
+
+  let attachmentNote = surface === "operator" ? "Browser evidence waived (operator surface)." : "No video file found.";
+  let attId = null;
   if (videoPath) {
     try {
-      const attId = await uploadIssueAttachment(issueId, videoPath);
+      attId = await uploadIssueAttachment(issueId, videoPath);
       attachmentNote = attId
         ? `Video attached (${basename(videoPath)}, id ${attId}).`
         : `Video upload skipped; local file: ${basename(videoPath)}.`;
@@ -1205,27 +1226,6 @@ async function postEvidence(specPath, reportDirOrPayload, headSha, opts = {}) {
     };
   }
 
-  const acRows = acceptance_criteria
-    .map(
-      (r) =>
-        `<li><strong>${escapeHtml(r.id ?? "?")}</strong>: ${escapeHtml(r.outcome ?? "?")} — ${escapeHtml(r.verifier ?? "")}</li>`,
-    )
-    .join("");
-
-  const markerBlock = wrapMarkerPayload("verify", verifyPayload);
-
-  const html = `<p><strong>Verify evidence</strong> — <code>${escapeHtml(meta.id ?? "spec")}</code></p>
-<ul>
-<li>Head SHA: <code>${escapeHtml(headSha ?? report.head_sha ?? "n/a")}</code></li>
-<li>Surface: <code>${escapeHtml(surface)}</code></li>
-<li>${escapeHtml(attachmentNote)}</li>
-</ul>
-${acRows ? `<p>Acceptance criteria:</p><ul>${acRows}</ul>` : ""}
-${markerBlock}
-<p><em>Posted by news-app plane-sync post-evidence. Canonical verify artifact — gate reads this comment only.</em></p>`;
-
-  const comment = await postIssueComment(issueId, html);
-  const commentId = comment?.id ?? comment?.comment_id ?? "";
   const planeHost = env.PLANE_API_BASE.replace(/\/+$/, "").replace("api.", "app.");
   const commentUrl =
     meta.url ||
@@ -1233,11 +1233,42 @@ ${markerBlock}
 
   verifyPayload.browser_evidence = {
     ...verifyPayload.browser_evidence,
-    status: surface === "product" ? "posted" : verifyPayload.browser_evidence.status,
     plane_issue_id: issueId,
-    plane_comment_id: commentId,
     plane_comment_url: commentUrl,
+    ...(surface === "product"
+      ? {
+          video_attached: true,
+          ...(videoPath ? { video_path: basename(videoPath) } : {}),
+          ...(attId ? { plane_attachment_id: attId } : {}),
+        }
+      : {}),
   };
+
+  const acTableRows = acceptance_criteria
+    .map(
+      (r) =>
+        `<tr><td><strong>${escapeHtml(r.id ?? "?")}</strong></td><td>${escapeHtml(r.outcome ?? "?")}</td><td><code>${escapeHtml(r.verifier ?? "")}</code></td></tr>`,
+    )
+    .join("");
+
+  const markerBlock = wrapMarkerPayload("verify", verifyPayload);
+
+  const html = `<h3>Verify evidence — ${escapeHtml(meta.id ?? "spec")}</h3>
+<table>
+<thead><tr><th>Field</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>Head SHA</td><td><code>${escapeHtml(headSha ?? report.head_sha ?? "n/a")}</code></td></tr>
+<tr><td>Surface</td><td><code>${escapeHtml(surface)}</code></td></tr>
+<tr><td>Browser evidence</td><td>${escapeHtml(attachmentNote)}</td></tr>
+</tbody>
+</table>
+${acTableRows ? `<h4>Acceptance criteria</h4><table><thead><tr><th>ID</th><th>Outcome</th><th>Verifier</th></tr></thead><tbody>${acTableRows}</tbody></table>` : ""}
+${markerBlock}
+<p><em>Posted by news-app plane-sync post-evidence. Canonical verify artifact — gate reads embedded JSON marker only.</em></p>`;
+
+  const comment = await postIssueComment(issueId, html);
+  const commentId = comment?.id ?? comment?.comment_id ?? "";
+  verifyPayload.browser_evidence.plane_comment_id = commentId;
 
   console.log(
     JSON.stringify({

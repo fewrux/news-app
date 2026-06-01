@@ -346,8 +346,9 @@ sdlc:
       command: "node scripts/check-phase-exit.mjs --phase verify --spec"
       notes: |
         Canonical verify artifact is a Plane issue comment with sdlc:verify:v1 marker.
-        Product-surface: browser_evidence.status posted. Operator-surface: waived + reason.
-        Hard gate — PLANE_* env required locally and in CI (no waivers).
+        Product-surface: browser_evidence.status posted, video_attached true, .webm on Plane.
+        Operator-surface: waived + reason (min 8 chars). No video required.
+        Hard gate — PLANE_* env required locally and in CI (load .env then .env.local).
 
     adr_alternatives_considered:
       asserts: "ADR lists >= 2 alternatives with trade-offs"
@@ -685,7 +686,9 @@ sdlc:
           - { name: link-spec,            args: "<path-to-spec.md> <issue-id>", writes: "tracker.issues[0] back to frontmatter" }
           - { name: close-cycle,          args: "<cycle-id>",            writes: "(none)" }
           - { name: github-event,         args: "(reads $GITHUB_EVENT_PATH)", writes: "(none)" }
-          - { name: post-evidence,        args: "<path-to-spec.md> <report-dir> [--head-sha SHA]", writes: "plane issue comment + report.json browser_evidence block" }
+          - { name: post-evidence,        args: "<path-to-spec.md> <report-dir> [--head-sha SHA]", writes: "plane issue comment + video attachment + report.json browser_evidence block" }
+          - { name: collect-verify-evidence, args: "--run-id <id> [--surface product|operator]", writes: ".sdlc/reports/{run_id}/videos/" }
+          - { name: run-verify-phase,     args: "--spec <spec-path>", writes: "mechanical verify loop" }
         artifact_frontmatter:
           # Canonical artifact-side shape. Replaces provider-specific
           # fields (e.g. plane_issue:) per ADR-0002. Legacy plane_issue:
@@ -750,10 +753,18 @@ sdlc:
         operator_paths: [.sdlc/**, .cursor/**, docs/**, .github/**, scripts/**]
         rule: "One spec and one PR per lane; cross-lane diffs blocked (gate.no_cross_lane_diff)."
       video:
-        record: on_first_retry
+        record: always_on_verify          # ADR-0008 — first pass, not retry-only
+        dev_record: on_first_retry        # playwright.config.ts default for npm run test:e2e
+        verify_config: playwright.verify.config.ts
+        verify_env: SDLC_VERIFY=1
+        collect_script: scripts/collect-verify-evidence.mjs
+        run_script: scripts/run-verify-phase.mjs
         keep: failures_only_plus_one_smoke_per_pr
         artifact_path: .sdlc/reports/{run_id}/videos/
         durable_store: plane_issue_comment     # system of record
+        product_requires:
+          - browser_evidence.video_attached == true
+          - plane_attachment_id or video_path in marker payload
       trace:
         record: on_first_retry
         artifact_path: .sdlc/reports/{run_id}/traces/

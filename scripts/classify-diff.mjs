@@ -39,6 +39,7 @@ export const OPERATOR_FILES = [
   "GEMINI.md",
   "README.md",
   "playwright.config.ts",
+  "playwright.verify.config.ts",
   "package.json",
   "package-lock.json",
   "vercel.json",

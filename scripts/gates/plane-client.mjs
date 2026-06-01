@@ -2,6 +2,9 @@
  * Minimal Plane read client for gate scripts (mirrors plane-sync auth/env).
  */
 import { env, exit } from "node:process";
+import { loadEnvFiles } from "../load-env.mjs";
+
+loadEnvFiles();
 
 const REQUIRED = [
   "PLANE_API_BASE",

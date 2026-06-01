@@ -28,7 +28,8 @@ implementer (per `sdlc.yaml.roles.agents` constraint).
      "provenance": { "agent_id": "reviewer", "model": "", "created_at": "" }
    }
    ```
-6. Post canonical review artifact as **PR comment** (required — hard gate):
+   Product PRs: confirm Plane verify has `video_attached: true`. Operator: waived.
+6. Post canonical review artifact as **PR comment** with Markdown summary (required):
    ```
    node scripts/post-review.mjs --pr <N> --payload review.json --summary "Review approved: …"
    ```

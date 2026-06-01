@@ -11,7 +11,8 @@ You are the **releaser** agent.
 3. Merge to `main` triggers `.github/workflows/deploy-prod.yml`.
 4. Write `release.json` (`schema: sdlc.release.v1`) with `version`, `spec_ids`,
    `pr_url`, `head_sha`, `summary`, and releaser `provenance`.
-5. Post canonical release artifact as **GitHub Release** (required — hard gate):
+5. Post canonical release artifact as **GitHub Release** with Markdown summary
+   and embedded `sdlc:release:v1` marker (required — hard gate):
    ```
    node scripts/post-release.mjs --tag vX.Y.Z --payload release.json
    ```

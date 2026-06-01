@@ -5,7 +5,7 @@
 > (how it's built). When a rule here conflicts with a spec, the spec
 > wins for *that* change and this file is updated in the same PR.
 
-last_updated: 2026-05-25
+last_updated: 2026-06-01
 
 ## Product identity
 
@@ -49,3 +49,17 @@ last_updated: 2026-05-25
 - Smaller is better. Default to *not* adding a knob.
 - If you're considering relaxing a rule above, write a new intent
   (`/intent`) — don't quietly diverge.
+
+## SDLC verify evidence (operator policy — ADR-0008)
+
+These rules govern the **SDLC harness**, not The Daily Brief product UI.
+
+- **Product lane** (`surface: product`, `app/**`, `tests/e2e/**`): Playwright
+  video is **mandatory on every verify run** (first pass, not retry-only).
+  `post-evidence` must attach a `.webm`; gate requires `video_attached: true`.
+- **Operator lane** (`.sdlc/`, `.cursor/`, `docs/`, `scripts/`, `.github/`):
+  browser evidence **waived** — no video required.
+- Policy docs (`sdlc.yaml`, this file, `docs/testing.md`) are operator lane;
+  editing them never triggers product video requirements.
+- `/doctor` audits SDLC/operator health only — not product app health or
+  merged product PR video.

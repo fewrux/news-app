@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * SDLC doctor — mechanical drift checker (zero LLM).
- * Contract: SPEC-0002, ADR-0003.
+ * Contract: SPEC-0002, ADR-0003, ADR-0008 (operator/SDLC health only — no product PR video audits).
  *
  * Usage:
  *   node scripts/sdlc-doctor.mjs --mode=mechanical
