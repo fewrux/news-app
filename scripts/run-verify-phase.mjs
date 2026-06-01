@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
  * Mechanical verify loop: e2e (product) → collect → post-evidence → check-phase-exit.
+ * This is the ONLY legal path for product-surface verify (gate fails without harness_id).
  *
  * Usage:
  *   node scripts/run-verify-phase.mjs --spec .sdlc/specs/SPEC-XXXX.md [--surface product|operator]
@@ -12,6 +13,10 @@ import { resolve, join } from "node:path";
 import { argv, exit } from "node:process";
 import { loadEnvFiles } from "./load-env.mjs";
 import { ROOT, parseFrontmatter } from "./gates/common.mjs";
+import {
+  initManifest,
+  stampPhase,
+} from "./execution-manifest.mjs";
 
 loadEnvFiles();
 
@@ -26,6 +31,7 @@ function run(cmd, args, opts = {}) {
     cwd: ROOT,
     stdio: opts.inherit ? "inherit" : "pipe",
     env: process.env,
+    shell: process.platform === "win32",
   });
   return r;
 }
@@ -50,6 +56,17 @@ async function main() {
   const surface = arg("--surface") ?? frontmatter.surface ?? "operator";
   const maxAttempts = readMaxAttempts();
   const headSha = run("git", ["rev-parse", "HEAD"]).stdout?.trim();
+
+  const { manifest, path: manifestPath } = initManifest(frontmatter.id ?? "SPEC-UNKNOWN", headSha ?? "");
+  process.env.SDLC_MANIFEST = manifestPath;
+  console.log(`run-verify-phase: manifest at ${manifestPath}`);
+
+  stampPhase(manifestPath, "verify", {
+    outcome: "pending",
+    harness_id: "run-verify-phase.mjs",
+    head_sha: headSha ?? "",
+    surface,
+  });
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     console.log(`run-verify-phase: attempt ${attempt}/${maxAttempts} (${surface})`);
@@ -83,6 +100,16 @@ async function main() {
       ]);
       if (collect.status !== 0) continue;
     }
+
+    stampPhase(manifestPath, "verify", {
+      outcome: "pending",
+      harness_id: "run-verify-phase.mjs",
+      head_sha: headSha ?? "",
+      surface,
+      run_id: runId,
+      report_dir: reportDir,
+      attempt,
+    });
 
     const report = {
       schema: "sdlc.verify.v1",
@@ -121,13 +148,29 @@ async function main() {
       specPath,
       "--head-sha",
       headSha ?? "",
+      "--execution-id",
+      manifest.execution_id,
     ]);
     if (gate.status === 0) {
-      console.log(JSON.stringify({ ok: true, run_id: runId, attempt }));
+      stampPhase(manifestPath, "verify", {
+        outcome: "pass",
+        harness_id: "run-verify-phase.mjs",
+        head_sha: headSha ?? "",
+        surface,
+        run_id: runId,
+        report_dir: reportDir,
+        attempt,
+      });
+      console.log(JSON.stringify({ ok: true, run_id: runId, attempt, manifest: manifestPath }));
       exit(0);
     }
   }
 
+  stampPhase(manifestPath, "verify", {
+    outcome: "fail",
+    harness_id: "run-verify-phase.mjs",
+    surface,
+  });
   console.error(`run-verify-phase: failed after ${maxAttempts} attempts`);
   exit(1);
 }

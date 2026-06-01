@@ -50,15 +50,22 @@ last_updated: 2026-06-01
 - If you're considering relaxing a rule above, write a new intent
   (`/intent`) — don't quietly diverge.
 
-## SDLC verify evidence (operator policy — ADR-0008)
+## SDLC verify evidence (operator policy — ADR-0008, ADR-0009)
 
 These rules govern the **SDLC harness**, not The Daily Brief product UI.
 
 - **Product lane** (`surface: product`, `app/**`, `tests/e2e/**`): Playwright
   video is **mandatory on every verify run** (first pass, not retry-only).
   `post-evidence` must attach a `.webm`; gate requires `video_attached: true`.
+  **Product verify must use `run-verify-phase.mjs`** — the gate fails if the
+  execution manifest is missing or `phases.verify.harness_id` is absent.
 - **Operator lane** (`.sdlc/`, `.cursor/`, `docs/`, `scripts/`, `.github/`):
-  browser evidence **waived** — no video required.
+  browser evidence **waived** — no video required. Manifest harness check
+  is also skipped for operator surface.
+- **Execution manifest** (`schema: sdlc.execution.v1`, `.sdlc/runs/`, gitignored):
+  records every phase gate outcome. The verify gate cross-checks claims
+  (report_dir on disk, video_count >= 1) against the filesystem. Prevents
+  forged or replayed Plane comments from satisfying the gate.
 - Policy docs (`sdlc.yaml`, this file, `docs/testing.md`) are operator lane;
   editing them never triggers product video requirements.
 - `/doctor` audits SDLC/operator health only — not product app health or

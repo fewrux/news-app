@@ -774,6 +774,32 @@ sdlc:
         - phase.review.inputs
         - integrations.plane.issue_comments
 
+    execution_manifest:
+      # Trustless audit trail for a single spec run (SPEC-0015, ADR-0009).
+      # Gitignored — Plane comment is the system of record for remote visibility.
+      role: local_audit_trail
+      schema: sdlc.execution.v1
+      location: .sdlc/runs/{execution_id}.json
+      gitignored: true
+      writer: scripts/execution-manifest.mjs    # init/stamp/verify CLI + import API
+      harness: scripts/run-verify-phase.mjs     # ONLY legal product-verify path
+      gating:
+        product_verify_requires:
+          - phases.verify.harness_id == "run-verify-phase.mjs"
+          - phases.verify.claims.video_count >= 1
+          - phases.verify.claims.report_dir exists on disk
+        operator_verify: harness_check_skipped
+      stamp_on_gate_pass: true   # check-phase-exit.mjs stamps each phase on pass
+      env_var: SDLC_MANIFEST     # set by run-verify-phase.mjs; read by check-phase-exit and validateVerify
+      claims_fields:
+        - report_dir        # absolute path; gate checks existsSync
+        - video_count       # integer; product requires >= 1
+        - test_count        # from acceptance_criteria rows
+        - report_hash       # sha256: prefix
+        - video_hashes      # array of sha256: hashes
+        - plane_attachment_id  # set by post-evidence after upload
+      maps_to_phases: [ideate, specify, design, implement, verify, review, release]
+
   # ---------------------------------------------------------------------------
   # LIFECYCLE INVARIANTS — the contract this DSL guarantees
   # ---------------------------------------------------------------------------
